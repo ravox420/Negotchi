@@ -1,0 +1,27 @@
+{
+  "source": "C:\\Users\\DIRECTA\\Desktop\\PimpDogg.gif",
+  "source_frames": 57,
+  "source_duration_seconds": 8.84,
+  "sheet": {
+    "width": 1536,
+    "height": 1872
+  },
+  "animations": [
+    "idle",
+    "running-right",
+    "running-left",
+    "waving",
+    "jumping",
+    "failed",
+    "waiting",
+    "running",
+    "review",
+    "move_right",
+    "move_left",
+    "wave",
+    "bounce",
+    "sad"
+  ],
+  "selector": "custom:PimpDogg",
+  "codex_version": "0.159.2"
+}
