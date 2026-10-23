@@ -1,9 +1,11 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Web.Script.Serialization;
 using System.Windows;
@@ -53,16 +55,21 @@ namespace Negotchi
         public string ReasoningEffort { get; set; }
         public string ThreadMemoryMode { get; set; }
         public Dictionary<string, object> TokenUsage { get; set; }
+        public AppearanceSettings Appearance { get; set; }
         public AppState()
         {
             X = -1; Y = -1; Scale = 1; Topmost = true; SelectedPetId = "PimpDogg";
             Folder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             Messages = new List<ChatMessage>();
+            Appearance = new AppearanceSettings();
         }
     }
 
     internal sealed class StateStore
     {
+        private const int ReplaceExisting = 0x1, WriteThrough = 0x8;
+        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+        private static extern bool MoveFileEx(string source, string destination, int flags);
         private readonly string path;
         public StateStore(string directory) { path = Path.Combine(directory, "state.json"); }
         public AppState Load()
@@ -78,6 +85,7 @@ namespace Negotchi
                 state.Scale = Math.Max(0.65, Math.Min(1.8, state.Scale));
                 if (double.IsNaN(state.X) || double.IsInfinity(state.X) || double.IsNaN(state.Y) || double.IsInfinity(state.Y)) { state.X = -1; state.Y = -1; }
                 if (!Directory.Exists(state.Folder)) state.Folder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                state.Appearance = Theme.Normalize(state.Appearance);
                 return state;
             }
             catch (IOException) { return new AppState(); }
@@ -89,8 +97,8 @@ namespace Negotchi
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             var temporary = path + ".tmp";
             File.WriteAllText(temporary, Json.Encode(state), new UTF8Encoding(false));
-            if (File.Exists(path)) File.Replace(temporary, path, null);
-            else File.Move(temporary, path);
+            // Rename the completed file on the same volume, without merging metadata from the old state.
+            if (!MoveFileEx(temporary, path, ReplaceExisting | WriteThrough)) throw new IOException("Nao foi possivel salvar as preferencias.", new Win32Exception(Marshal.GetLastWin32Error()));
         }
     }
 
@@ -108,19 +116,19 @@ namespace Negotchi
         public readonly int FrameWidth, FrameHeight;
         public readonly BitmapSource[] Frames;
         public readonly Dictionary<string, AnimationTrack> Animations = new Dictionary<string, AnimationTrack>();
-        public PetAssets() : this("Negotchi.pet.json", "Negotchi.spritesheet.png") { }
-        public PetAssets(string manifestResource, string spritesheetResource)
+        public PetAssets() : this("Negotchi.pets.PimpDogg.pet.json", "Negotchi.pets.PimpDogg.spritesheet.png") { }
+        public PetAssets(string manifestResource, string spritesheetResource) : this(Assembly.GetExecutingAssembly().GetManifestResourceStream(manifestResource), Assembly.GetExecutingAssembly().GetManifestResourceStream(spritesheetResource)) { }
+        internal PetAssets(Stream manifestStream, Stream sheetStream)
         {
-            var assembly = Assembly.GetExecutingAssembly();
             Dictionary<string, object> manifest;
-            using (var reader = new StreamReader(assembly.GetManifestResourceStream(manifestResource), Encoding.UTF8)) manifest = Json.Decode(reader.ReadToEnd());
-            Id = Json.Text(manifest, "id"); DisplayName = Json.Text(manifest, "displayName"); Description = Json.Text(manifest, "description");
             BitmapImage sheet;
-            using (var stream = assembly.GetManifestResourceStream(spritesheetResource))
+            using (sheetStream)
             {
+                using (var reader = new StreamReader(manifestStream, Encoding.UTF8)) manifest = Json.Decode(reader.ReadToEnd());
                 sheet = new BitmapImage(); sheet.BeginInit(); sheet.CacheOption = BitmapCacheOption.OnLoad;
-                sheet.StreamSource = stream; sheet.EndInit(); sheet.Freeze();
+                sheet.StreamSource = sheetStream; sheet.EndInit(); sheet.Freeze();
             }
+            Id = Json.Text(manifest, "id"); DisplayName = Json.Text(manifest, "displayName"); Description = Json.Text(manifest, "description");
             var frame = Json.Object(manifest, "frame");
             int width = Convert.ToInt32(frame["width"]), height = Convert.ToInt32(frame["height"]);
             int columns = Convert.ToInt32(frame["columns"]), rows = Convert.ToInt32(frame["rows"]);
@@ -142,12 +150,20 @@ namespace Negotchi
             }
             if (!Animations.ContainsKey("idle") || Animations.Values.Any(track => !Animations.ContainsKey(track.Fallback))) throw new InvalidDataException("Animacao de repouso ausente.");
         }
+        public string ResolveAnimation(string name)
+        {
+            name = name == "move-right" || name == "move_right" ? "running-right" : name == "move-left" || name == "move_left" ? "running-left" : name;
+            if (Animations.ContainsKey(name)) return name;
+            string fallback = name == "thinking" ? "waiting" : name == "responding" ? "review" : "idle";
+            return Animations.ContainsKey(fallback) ? fallback : "idle";
+        }
     }
 
     internal sealed class PetDefinition
     {
         public readonly string Id, DisplayName, Description;
         private readonly string manifestResource, sheetResource, previewResource;
+        private readonly string packageDirectory;
         private BitmapSource preview;
         public PetDefinition(string manifest, string sheet, string thumbnail)
         {
@@ -157,6 +173,13 @@ namespace Negotchi
                 var data = Json.Decode(reader.ReadToEnd()); Id = Json.Text(data, "id"); DisplayName = Json.Text(data, "displayName"); Description = Json.Text(data, "description");
             }
             if (string.IsNullOrWhiteSpace(Id) || string.IsNullOrWhiteSpace(DisplayName)) throw new InvalidDataException("Pet sem identificacao.");
+        }
+        internal PetDefinition(string directory)
+        {
+            packageDirectory = directory;
+            var assets = PetPackages.Load(directory);
+            Id = assets.Id; DisplayName = assets.DisplayName; Description = assets.Description;
+            preview = assets.Frames[assets.Animations["idle"].Frames[0]];
         }
         public BitmapSource Preview
         {
@@ -172,45 +195,38 @@ namespace Negotchi
                 return preview;
             }
         }
-        public PetAssets Load() { return new PetAssets(manifestResource, sheetResource); }
+        public PetAssets Load() { return packageDirectory == null ? new PetAssets(manifestResource, sheetResource) : PetPackages.Load(packageDirectory); }
     }
 
     internal sealed class PetCatalog
     {
         public readonly PetDefinition[] Pets;
-        public PetCatalog()
+        public readonly List<string> Errors = new List<string>();
+        public PetCatalog() : this(null) { }
+        public PetCatalog(string packagesDirectory)
         {
-            var pets = new List<PetDefinition> { new PetDefinition("Negotchi.pet.json", "Negotchi.spritesheet.png", "Negotchi.preview.png") };
+            var pets = new List<PetDefinition>();
             foreach (var name in Assembly.GetExecutingAssembly().GetManifestResourceNames().Where(name => name.StartsWith("Negotchi.pets.", StringComparison.Ordinal) && name.EndsWith(".pet.json", StringComparison.Ordinal)))
             {
                 string prefix = name.Substring(0, name.Length - "pet.json".Length);
                 pets.Add(new PetDefinition(name, prefix + "spritesheet.png", prefix + "preview.png"));
             }
             if (pets.Select(p => p.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() != pets.Count) throw new InvalidDataException("Existem pets com identificadores repetidos.");
+            if (!string.IsNullOrEmpty(packagesDirectory) && Directory.Exists(packagesDirectory))
+            foreach (string directory in Directory.GetDirectories(packagesDirectory))
+            {
+                if (Path.GetFileName(directory).StartsWith(".", StringComparison.Ordinal)) continue;
+                try
+                {
+                    var definition = new PetDefinition(directory);
+                    if (pets.Any(p => string.Equals(p.Id, definition.Id, StringComparison.OrdinalIgnoreCase))) throw new InvalidDataException("Identificador ja utilizado: " + definition.Id);
+                    pets.Add(definition);
+                }
+                catch (Exception error) { Errors.Add(Path.GetFileName(directory) + ": " + error.Message); }
+            }
             Pets = pets.OrderBy(p => p.Id == "PimpDogg" ? 0 : 1).ThenBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase).ToArray();
         }
         public PetDefinition Find(string id) { return Pets.FirstOrDefault(p => string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase)) ?? Pets[0]; }
     }
 
-    internal static class Theme
-    {
-        public static readonly Brush Background = Brush("#17131C"), Card = Brush("#241D2B"), Pink = Brush("#F0A5C9"), Text = Brush("#F8F1FA"), Muted = Brush("#B4A4BC"), Line = Brush("#3A2E43");
-        public static SolidColorBrush Brush(string color) { var brush = (SolidColorBrush)new BrushConverter().ConvertFromString(color); brush.Freeze(); return brush; }
-        public static System.Windows.Controls.Button Button(string label, RoutedEventHandler clicked, bool accent)
-        {
-            var button = new System.Windows.Controls.Button { Content = label, Background = accent ? Pink : Card, Foreground = accent ? Background : Text, BorderBrush = Line, Padding = new Thickness(12, 7, 12, 7), Margin = new Thickness(0, 0, 7, 0), Cursor = System.Windows.Input.Cursors.Hand, FontSize = 12, MinHeight = 32 };
-            var border = new System.Windows.FrameworkElementFactory(typeof(System.Windows.Controls.Border));
-            border.SetValue(System.Windows.Controls.Border.CornerRadiusProperty, new CornerRadius(8));
-            border.SetValue(System.Windows.Controls.Border.BackgroundProperty, new TemplateBindingExtension(System.Windows.Controls.Control.BackgroundProperty));
-            border.SetValue(System.Windows.Controls.Border.BorderBrushProperty, new TemplateBindingExtension(System.Windows.Controls.Control.BorderBrushProperty));
-            border.SetValue(System.Windows.Controls.Border.BorderThicknessProperty, new Thickness(1));
-            var presenter = new System.Windows.FrameworkElementFactory(typeof(System.Windows.Controls.ContentPresenter));
-            presenter.SetValue(System.Windows.FrameworkElement.MarginProperty, new TemplateBindingExtension(System.Windows.Controls.Control.PaddingProperty));
-            presenter.SetValue(System.Windows.FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center);
-            presenter.SetValue(System.Windows.FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
-            border.AppendChild(presenter);
-            button.Template = new System.Windows.Controls.ControlTemplate(typeof(System.Windows.Controls.Button)) { VisualTree = border };
-            button.Click += clicked; return button;
-        }
-    }
 }

@@ -15,10 +15,6 @@ foreach ($reference in $references) { $arguments += '/reference:' + (Join-Path $
 foreach ($reference in @('PresentationCore.dll', 'PresentationFramework.dll', 'WindowsBase.dll')) {
     $arguments += '/reference:' + (Join-Path $frameworkDirectory ('WPF\' + $reference))
 }
-$pimpDoggDirectory = Join-Path $PSScriptRoot 'pets\PimpDogg'
-$arguments += '/resource:' + (Join-Path $pimpDoggDirectory 'spritesheet.png') + ',Negotchi.spritesheet.png'
-$arguments += '/resource:' + (Join-Path $pimpDoggDirectory 'pet.json') + ',Negotchi.pet.json'
-$arguments += '/resource:' + (Join-Path $pimpDoggDirectory 'preview.png') + ',Negotchi.preview.png'
 foreach ($petDirectory in @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'pets') -Directory | Sort-Object Name)) {
     foreach ($petFile in @('pet.json', 'spritesheet.png', 'preview.png')) {
         $arguments += '/resource:' + (Join-Path $petDirectory.FullName $petFile) + ',Negotchi.pets.' + $petDirectory.Name + '.' + $petFile
@@ -28,11 +24,15 @@ $arguments += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src') -Filt
 & $compiler @arguments
 if ($LASTEXITCODE -ne 0) { throw 'A compilacao do Negotchi falhou.' }
 Write-Output ('Aplicativo: ' + (Join-Path $outputDirectory 'Negotchi.exe'))
+$skillSource = Join-Path $projectRoot '.agents\skills\create-pet'
+$skillDestination = Join-Path $outputDirectory 'skills'
+New-Item -ItemType Directory -Force -Path $skillDestination | Out-Null
+Copy-Item -LiteralPath $skillSource -Destination $skillDestination -Recurse -Force
 if ($Test) {
     $testArguments = @('/nologo', '/target:exe', '/platform:anycpu', '/utf8output', ('/out:' + (Join-Path $outputDirectory 'Negotchi.Tests.exe')), '/main:Negotchi.Tests')
     $testArguments += @($arguments | Where-Object { $_ -like '/reference:*' -or $_ -like '/resource:*' })
     $testArguments += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src') -Filter '*.cs' | ForEach-Object { $_.FullName })
-    $testArguments += Join-Path $PSScriptRoot 'tests\Tests.cs'
+    $testArguments += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tests') -Filter '*.cs' | ForEach-Object { $_.FullName })
     & $compiler @testArguments
     if ($LASTEXITCODE -ne 0) { throw 'A compilacao dos testes falhou.' }
     & (Join-Path $outputDirectory 'Negotchi.Tests.exe') $outputDirectory

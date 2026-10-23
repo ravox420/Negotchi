@@ -34,6 +34,7 @@ namespace Negotchi
             new SlashCommand("/login", "Conectar a conta do Codex"),
             new SlashCommand("/pets", "Abrir a selecao de personagens"),
             new SlashCommand("/import-pet", "Importar um pet a partir de pet.json e spritesheet"),
+            new SlashCommand("/create-pet", "Criar um pet animado com onze estados", "/create-pets"),
             new SlashCommand("/help", "Ver os comandos disponiveis")
         };
         public static bool TryParse(string text, out SlashInvocation invocation)
@@ -165,6 +166,26 @@ namespace Negotchi
             var settings = Json.Map("threadId", threadId, "model", selection.Model);
             if (!string.IsNullOrEmpty(selection.Effort)) settings.Add("effort", selection.Effort);
             return settings;
+        }
+        public static string AvailableLimitsText(RpcRead limits)
+        {
+            if (limits == null || limits.Error != null) return "Limites indisponiveis";
+            var buckets = Json.Object(limits.Data, "rateLimitsByLimitId");
+            var snapshots = buckets.Count > 0 ? buckets.OrderBy(entry => entry.Key, StringComparer.OrdinalIgnoreCase).Select(entry => entry.Value).OfType<Dictionary<string, object>>().ToArray() : new[] { Json.Object(limits.Data, "rateLimits") };
+            var available = new List<string>();
+            foreach (var snapshot in snapshots)
+            {
+                string name = Json.Text(snapshot, "limitName"); if (name.Length == 0) name = Json.Text(snapshot, "limitId");
+                foreach (string key in new[] { "primary", "secondary" })
+                {
+                    var window = Json.Object(snapshot, key);
+                    double used;
+                    if (!double.TryParse(Convert.ToString(Json.Get(window, "usedPercent"), CultureInfo.InvariantCulture), NumberStyles.Float, CultureInfo.InvariantCulture, out used) || double.IsNaN(used) || double.IsInfinity(used)) continue;
+                    double remaining = 100 - Math.Max(0, Math.Min(100, used));
+                    available.Add((snapshots.Length > 1 && name.Length > 0 ? name + ": " : "") + remaining.ToString("0.##", CultureInfo.GetCultureInfo("pt-BR")) + "% (" + WindowName(window, key) + ")");
+                }
+            }
+            return (Equals(Json.Get(limits.Data, "ordinaryUsageAllowed"), false) ? "Uso bloqueado. " : "") + (available.Count > 0 ? "Disponivel: " + string.Join(" | ", available) : "Limites nao informados");
         }
         public static string UsageText(RpcRead account, RpcRead limits, RpcRead usage, Dictionary<string, object> tokens)
         {

@@ -18,9 +18,10 @@ namespace Negotchi
             input = composer;
             list = new ListBox { Background = Theme.Card, Foreground = Theme.Text, BorderThickness = new Thickness(0), MaxHeight = 220, HorizontalContentAlignment = HorizontalAlignment.Stretch };
             var content = new DockPanel();
-            var heading = new TextBlock { Text = "COMANDOS DO CODEX", Foreground = Theme.Pink, FontSize = 10, Margin = new Thickness(8, 4, 8, 10) }; DockPanel.SetDock(heading, Dock.Top); content.Children.Add(heading);
+            var heading = new TextBlock { Text = "COMANDOS DO CODEX", Foreground = Theme.Accent, FontSize = 10, Margin = new Thickness(8, 4, 8, 10) }; DockPanel.SetDock(heading, Dock.Top); content.Children.Add(heading);
             var hint = new TextBlock { Text = "Enter executa  /  Tab completa  /  Esc fecha", Foreground = Theme.Muted, FontSize = 10, Margin = new Thickness(8, 10, 8, 4) }; DockPanel.SetDock(hint, Dock.Bottom); content.Children.Add(hint);
             content.Children.Add(list);
+            Theme.BindTypography(content);
             popup = new Popup { PlacementTarget = input, Placement = PlacementMode.Top, StaysOpen = false, AllowsTransparency = true, Child = new Border { Background = Theme.Card, BorderBrush = Theme.Line, BorderThickness = new Thickness(1), CornerRadius = new CornerRadius(10), Padding = new Thickness(8), Child = content } };
             input.TextChanged += delegate {
                 if (!enabled) return;
@@ -68,8 +69,9 @@ namespace Negotchi
             foreach (var command in SlashCommands.Match(prefix))
             {
                 var row = new StackPanel { Margin = new Thickness(6, 5, 6, 5) };
-                row.Children.Add(new TextBlock { Text = command.Name, Foreground = Theme.Text, FontSize = 13, FontWeight = FontWeights.SemiBold });
-                row.Children.Add(new TextBlock { Text = command.Description, Foreground = Theme.Muted, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
+                row.Children.Add(new TextBlock { Text = command.Name, FontSize = 13, FontWeight = FontWeights.SemiBold });
+                row.Children.Add(new TextBlock { Text = command.Description, Opacity = 0.8, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) });
+                Theme.BindTypography(row);
                 list.Items.Add(new ListBoxItem { Content = row, Tag = command });
             }
             if (list.Items.Count > 0) list.SelectedIndex = 0;

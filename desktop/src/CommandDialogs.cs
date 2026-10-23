@@ -34,7 +34,7 @@ namespace Negotchi
             var window = Window(owner, title, 540); var layout = Layout(window, title, "Dados e controles do Codex nesta interface.");
             Buttons(layout).Children.Add(Theme.Button("Fechar", delegate { window.Close(); }, true));
             layout.Children.Add(new TextBox { Text = text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Background = Theme.Card, Foreground = Theme.Text, BorderBrush = Theme.Line, Padding = new Thickness(13), FontSize = 13 });
-            window.ShowDialog();
+            Theme.BindTypography(window); window.ShowDialog();
         }
 
         public static ModelSelection Model(Window owner, List<ModelChoice> models, string current, string currentEffort)
@@ -44,9 +44,9 @@ namespace Negotchi
             var buttons = Buttons(layout); ModelSelection selection = null;
             buttons.Children.Add(Theme.Button("Cancelar", delegate { window.Close(); }, false));
             var body = new StackPanel(); body.Children.Add(Label("Modelo"));
-            var model = new ComboBox { ItemsSource = models, DisplayMemberPath = "DisplayName", MinHeight = 34, Foreground = Brushes.Black, Margin = new Thickness(0, 0, 0, 16) }; body.Children.Add(model);
+            var model = new ComboBox { ItemsSource = models, DisplayMemberPath = "DisplayName", MinHeight = 34, Margin = new Thickness(0, 0, 0, 16) }; body.Children.Add(model);
             body.Children.Add(Label("Esforco de raciocinio"));
-            var effort = new ComboBox { MinHeight = 34, Foreground = Brushes.Black, Margin = new Thickness(0, 0, 0, 16) }; body.Children.Add(effort);
+            var effort = new ComboBox { MinHeight = 34, Margin = new Thickness(0, 0, 0, 16) }; body.Children.Add(effort);
             var description = new TextBlock { Foreground = Theme.Muted, TextWrapping = TextWrapping.Wrap, FontSize = 12 }; body.Children.Add(description);
             var apply = Theme.Button("Aplicar", delegate {
                 var chosen = model.SelectedItem as ModelChoice;
@@ -63,7 +63,7 @@ namespace Negotchi
             };
             model.SelectedItem = models.FirstOrDefault(m => m.Model == current) ?? models.FirstOrDefault(m => m.IsDefault) ?? models.FirstOrDefault();
             apply.IsEnabled = model.SelectedItem != null;
-            layout.Children.Add(body); window.ShowDialog(); return selection;
+            layout.Children.Add(body); Theme.BindTypography(window); window.ShowDialog(); return selection;
         }
 
         public static SkillChoice Skills(Window owner, List<SkillChoice> skills, string filter)
@@ -72,7 +72,7 @@ namespace Negotchi
             var layout = Layout(window, "/skills", "Escolha uma skill para anexar ao proximo pedido. A lista considera a pasta de trabalho atual.");
             var buttons = Buttons(layout); SkillChoice selection = null;
             buttons.Children.Add(Theme.Button("Cancelar", delegate { window.Close(); }, false));
-            var search = new TextBox { Text = filter, MinHeight = 32, Padding = new Thickness(8), Background = Theme.Card, Foreground = Theme.Text, CaretBrush = Theme.Pink, BorderBrush = Theme.Line, Margin = new Thickness(0, 0, 0, 12), ToolTip = "Buscar skill por nome ou descricao" }; DockPanel.SetDock(search, Dock.Top); layout.Children.Add(search);
+            var search = new TextBox { Text = filter, MinHeight = 32, Padding = new Thickness(8), Background = Theme.Card, Foreground = Theme.Text, CaretBrush = Theme.Accent, BorderBrush = Theme.Line, Margin = new Thickness(0, 0, 0, 12), ToolTip = "Buscar skill por nome ou descricao" }; DockPanel.SetDock(search, Dock.Top); layout.Children.Add(search);
             var details = new TextBlock { Text = skills.Count == 0 ? "Nenhuma skill disponivel nesta pasta." : "Selecione uma skill para ver os detalhes.", TextWrapping = TextWrapping.Wrap, Foreground = Theme.Muted, FontSize = 12, MaxHeight = 125, Margin = new Thickness(0, 12, 0, 0) }; DockPanel.SetDock(details, Dock.Bottom); layout.Children.Add(details);
             var list = new ListBox { Background = Theme.Card, Foreground = Theme.Text, BorderBrush = Theme.Line, Padding = new Thickness(6), HorizontalContentAlignment = HorizontalAlignment.Stretch };
             var use = Theme.Button("Usar skill", delegate { selection = list.SelectedItem as SkillChoice; if (selection != null && selection.Enabled) window.DialogResult = true; }, true); use.IsEnabled = false; buttons.Children.Add(use);
@@ -85,7 +85,7 @@ namespace Negotchi
                 details.Text = chosen == null ? "Selecione uma skill." : chosen.Description + "\n\n" + chosen.Path;
             };
             search.TextChanged += delegate { update(); }; update(); layout.Children.Add(list);
-            window.ShowDialog(); return selection;
+            Theme.BindTypography(window); window.ShowDialog(); return selection;
         }
 
         public static MemoryPreferences Memories(Window owner, MemoryPreferences current, RpcRead status)
@@ -101,13 +101,13 @@ namespace Negotchi
             body.Children.Add(enabled); body.Children.Add(use); body.Children.Add(generate);
             body.Children.Add(new TextBlock { Text = "Marcacao intermediaria: manter a configuracao atual. Uma memoria ja presente no historico nao e removida por essa troca.", TextWrapping = TextWrapping.Wrap, Foreground = Theme.Muted, FontSize = 11, Margin = new Thickness(0, 0, 0, 20) });
             body.Children.Add(Label("Permissao desta conversa para gerar memorias"));
-            var mode = new ComboBox { ItemsSource = new[] { "Manter o padrao atual", "Permitir contribuicao deste chat", "Nao usar este chat para gerar memorias" }, SelectedIndex = current.ThreadMode == "enabled" ? 1 : current.ThreadMode == "disabled" ? 2 : 0, MinHeight = 34, Foreground = Brushes.Black, Margin = new Thickness(0, 0, 0, 18) }; body.Children.Add(mode);
+            var mode = new ComboBox { ItemsSource = new[] { "Manter o padrao atual", "Permitir contribuicao deste chat", "Nao usar este chat para gerar memorias" }, SelectedIndex = current.ThreadMode == "enabled" ? 1 : current.ThreadMode == "disabled" ? 2 : 0, MinHeight = 34, Margin = new Thickness(0, 0, 0, 18) }; body.Children.Add(mode);
             body.Children.Add(new TextBlock { Text = status.Error != null ? "Status indisponivel: " + status.Error : "Memorias consolidadas: " + Json.Text(status.Data, "v2ConsolidatedThreads") + ". " + (Equals(Json.Get(status.Data, "v2Ready"), true) ? "Base pronta para uso." : "A base ainda nao esta pronta."), TextWrapping = TextWrapping.Wrap, Foreground = Theme.Muted, FontSize = 12 });
             buttons.Children.Add(Theme.Button("Aplicar", delegate {
                 selection = new MemoryPreferences { FeatureEnabled = enabled.IsChecked, UseMemories = use.IsChecked, GenerateMemories = generate.IsChecked, ThreadMode = mode.SelectedIndex == 1 ? "enabled" : mode.SelectedIndex == 2 ? "disabled" : null };
                 window.DialogResult = true;
             }, true));
-            layout.Children.Add(new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }); window.ShowDialog(); return selection;
+            layout.Children.Add(new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }); Theme.BindTypography(window); window.ShowDialog(); return selection;
         }
         private static CheckBox MemoryCheck(string label, bool? value) { return new CheckBox { Content = label, IsChecked = value, IsThreeState = true, Foreground = Theme.Text, Margin = new Thickness(0, 5, 0, 12), FontSize = 13 }; }
     }

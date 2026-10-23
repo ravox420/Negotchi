@@ -15,11 +15,22 @@ namespace Negotchi
 
         public PetPicker(PetCatalog catalog)
         {
+            Reload(catalog);
+        }
+
+        public void Reload(PetCatalog catalog)
+        {
+            Children.Clear(); cards.Clear(); captions.Clear();
             LastChildFill = true;
             var description = new TextBlock { Text = "Escolha seu companheiro", Foreground = Theme.Text, FontSize = 18, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 5, 0, 5) };
             SetDock(description, Dock.Top); Children.Add(description);
             var hint = new TextBlock { Text = catalog.Pets.Length + " pets disponiveis. Clique em um deles para trocar.", Foreground = Theme.Muted, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 16) };
             SetDock(hint, Dock.Top); Children.Add(hint);
+            var actions = new WrapPanel { Margin = new Thickness(0, 0, 0, 10) };
+            actions.Children.Add(Theme.Button("Criar pet", delegate { if (CommandRequested != null) CommandRequested("/create-pet"); }, true));
+            actions.Children.Add(Theme.Button("Importar pet", delegate { if (CommandRequested != null) CommandRequested("/import-pet"); }, false));
+            actions.Children.Add(Theme.Button("Atualizar", delegate { if (CommandRequested != null) CommandRequested("/pets"); }, false));
+            SetDock(actions, Dock.Top); Children.Add(actions);
             var footer = new TextBlock { Text = "Sua escolha fica salva. A conversa continua ao trocar de pet.", Foreground = Theme.Muted, FontSize = 11, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 12, 0, 0) };
             SetDock(footer, Dock.Bottom); Children.Add(footer);
             var grid = new WrapPanel { Orientation = Orientation.Horizontal };
@@ -34,12 +45,13 @@ namespace Negotchi
                 var caption = new TextBlock { Text = "Usar pet", FontSize = 10, Foreground = Theme.Muted, Margin = new Thickness(0, 3, 0, 0), HorizontalAlignment = HorizontalAlignment.Center };
                 content.Children.Add(caption);
                 var button = Theme.Button(pet.DisplayName, delegate { if (IsEnabled && PetSelected != null) PetSelected(pet.Id); }, false);
-                button.Content = content; button.Width = 122; button.Height = 144; button.Padding = new Thickness(6); button.Margin = new Thickness(0, 0, 8, 8); button.ToolTip = pet.Description;
+                button.Content = content; button.Width = 122; button.MinHeight = 144; button.Padding = new Thickness(6); button.Margin = new Thickness(0, 0, 8, 8); button.ToolTip = pet.Description;
                 System.Windows.Automation.AutomationProperties.SetName(button, "Usar " + pet.DisplayName);
                 cards.Add(pet.Id, button); captions.Add(pet.Id, caption); grid.Children.Add(button);
             }
             Children.Add(new ScrollViewer { Content = grid, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
         }
+        public event Action<string> CommandRequested;
 
         public void SetActive(string id)
         {
@@ -48,10 +60,11 @@ namespace Negotchi
             foreach (var item in cards)
             {
                 bool selected = string.Equals(item.Key, id, StringComparison.OrdinalIgnoreCase);
-                item.Value.Background = selected ? Theme.Brush("#342333") : Theme.Card;
-                item.Value.BorderBrush = selected ? Theme.Pink : Theme.Line;
+                item.Value.Background = selected ? Theme.SelectedButton : Theme.ButtonBackground;
+                item.Value.Foreground = selected ? Theme.SelectedButtonText : Theme.ButtonText;
+                item.Value.BorderBrush = selected ? Theme.Accent : Theme.Line;
                 captions[item.Key].Text = selected ? "Em uso" : "Usar pet";
-                captions[item.Key].Foreground = selected ? Theme.Pink : Theme.Muted;
+                captions[item.Key].Foreground = selected ? Theme.SelectedButtonText : Theme.ButtonText;
             }
         }
 
@@ -59,7 +72,7 @@ namespace Negotchi
         {
             var tab = new TabItem { Header = title, Content = content, Padding = new Thickness(15, 8, 15, 8), Margin = new Thickness(0, 0, 8, 0), BorderBrush = Theme.Line };
             var style = new Style(typeof(TabItem));
-            style.Setters.Add(new Setter(Control.BackgroundProperty, Theme.Card)); style.Setters.Add(new Setter(Control.ForegroundProperty, Theme.Muted));
+            style.Setters.Add(new Setter(Control.BackgroundProperty, Theme.ColorResource("Button"))); style.Setters.Add(new Setter(Control.ForegroundProperty, Theme.ColorResource("ButtonText")));
             tab.Style = style;
             var border = new FrameworkElementFactory(typeof(Border));
             border.SetValue(Border.CornerRadiusProperty, new CornerRadius(8));
@@ -72,8 +85,8 @@ namespace Negotchi
             border.AppendChild(presenter);
             var template = new ControlTemplate(typeof(TabItem)) { VisualTree = border };
             var selected = new Trigger { Property = TabItem.IsSelectedProperty, Value = true };
-            selected.Setters.Add(new Setter(Control.BackgroundProperty, Theme.Pink));
-            selected.Setters.Add(new Setter(Control.ForegroundProperty, Theme.Background));
+            selected.Setters.Add(new Setter(Control.BackgroundProperty, Theme.ColorResource("SelectedButton")));
+            selected.Setters.Add(new Setter(Control.ForegroundProperty, Theme.ColorResource("SelectedButtonText")));
             template.Triggers.Add(selected); tab.Template = template;
             return tab;
         }

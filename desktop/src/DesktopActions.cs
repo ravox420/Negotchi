@@ -56,7 +56,7 @@ namespace Negotchi
             DockPanel.SetDock(buttons, Dock.Bottom); layout.Children.Add(buttons);
             layout.Children.Add(new TextBox { Text = description, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Background = Theme.Card, Foreground = Theme.Text, BorderBrush = Theme.Line, Padding = new Thickness(12), FontSize = 13 });
             window.Content = layout;
-            return window.ShowDialog() == true;
+            Theme.BindTypography(window); return window.ShowDialog() == true;
         }
     }
 }

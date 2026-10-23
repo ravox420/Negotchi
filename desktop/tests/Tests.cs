@@ -13,7 +13,7 @@ using System.Windows.Media.Imaging;
 
 namespace Negotchi
 {
-    internal static class Tests
+    internal static partial class Tests
     {
         private static int assertions;
         private static string output;
@@ -22,11 +22,12 @@ namespace Negotchi
         {
             if (args.Length > 0 && args[0] == "app-server") return FakeServer();
             if (args.Length > 0 && args[0] == "--ui-smoke") return UiSmoke(Path.GetFullPath(args[1]));
+            if (args.Length > 0 && args[0] == "--pet-ui-smoke") return PetCreationUiSmoke(Path.GetFullPath(args[1]));
             output = Path.GetFullPath(args.Length > 0 ? args[0] : ".build");
             Directory.CreateDirectory(output);
             try
             {
-                TestAssets(); TestCatalog(); TestFiles(); TestState(); TestPosition(); TestSlashCommands(); TestProtocol().GetAwaiter().GetResult(); TestCommandProtocol().GetAwaiter().GetResult(); TestNativeProtocol().GetAwaiter().GetResult(); TestViews();
+                TestAssets(); TestCatalog(); TestFiles(); TestState(); TestPosition(); TestSlashCommands(); TestPetCreation(); TestProtocol().GetAwaiter().GetResult(); TestCommandProtocol().GetAwaiter().GetResult(); TestNativeProtocol().GetAwaiter().GetResult(); TestViews();
                 File.WriteAllText(Path.Combine(output, "test-results.json"), Json.Encode(Json.Map("passed", assertions, "failed", 0, "nativeProtocol", true, "liveModelTested", false)), Encoding.UTF8);
                 Console.WriteLine("PASS: " + assertions + " verificacoes. Previews: .build/chat-preview.png e .build/pet-preview.png");
                 return 0;
@@ -79,13 +80,14 @@ namespace Negotchi
         private static void TestCatalog()
         {
             var catalog = new PetCatalog();
-            Check(catalog.Pets.Length == 9, "inclui PimpDogg e os oito pets importados");
+            Check(catalog.Pets.Length == 10, "inclui PimpDogg, Guts e os oito pets importados");
+            Check(!Assembly.GetExecutingAssembly().GetManifestResourceNames().Contains("Negotchi.pet.json"), "usa somente os pets da pasta pets, sem manifesto padrao separado");
             Check(catalog.Find("ausente").Id == "PimpDogg" && catalog.Find(null).Id == "PimpDogg", "usa PimpDogg quando a escolha salva nao existe");
             Check(catalog.Find("DEWEY").Id == "dewey", "identifica pets sem diferenciar maiusculas");
             foreach (var definition in catalog.Pets)
             {
                 var assets = definition.Load();
-                Check(assets.Id == definition.Id && assets.DisplayName == definition.DisplayName && definition.Preview.PixelWidth == 192, "carrega manifesto e previa: " + definition.DisplayName);
+                Check(assets.Id == definition.Id && assets.DisplayName == definition.DisplayName && definition.Preview.PixelWidth > 0 && definition.Preview.PixelHeight > 0, "carrega manifesto e previa: " + definition.DisplayName);
                 var used = assets.Animations.Values.SelectMany(track => track.Frames).Distinct().ToArray();
                 bool visible = true;
                 foreach (int index in used)
@@ -94,7 +96,7 @@ namespace Negotchi
                     new FormatConvertedBitmap(assets.Frames[index], PixelFormats.Bgra32, null, 0).CopyPixels(pixels, 192 * 4, 0);
                     if (!Enumerable.Range(0, 192 * 208).Any(i => pixels[i * 4 + 3] > 12)) visible = false;
                 }
-                Check(visible && used.Length == 57, "animacoes nao incluem celulas vazias: " + definition.DisplayName);
+                Check(visible && used.Length == (assets.Id == "Guts" ? 72 : 57), "animacoes nao incluem celulas vazias: " + definition.DisplayName);
                 if (assets.Id != "PimpDogg") Check(assets.Animations["running-right"].Frames[0] == 8 && assets.Animations["review"].Frames[0] == 64, "respeita o padding entre estados: " + definition.DisplayName);
             }
             string instructions = Json.Text(NegotchiApp.ThreadOptions(output, "Dewey"), "developerInstructions");
@@ -106,18 +108,24 @@ namespace Negotchi
             var store = new StateStore(directory);
             var state = new AppState { X = -350, Y = 120, Scale = 1.25, Folder = output, ThreadId = "conversa-1", SelectedPetId = "dewey", SelectedModel = "model-a", ReasoningEffort = "medium", ThreadMemoryMode = "disabled" };
             state.Messages.Add(new ChatMessage { Role = "user", Text = "Voce consegue ler acentuacao? cafe, acoes, coracao." });
-            store.Save(state); state.Y = 140; store.Save(state);
+            state.Appearance = Theme.Preset("light"); state.Appearance.FontFamily = "Consolas"; state.Appearance.FontSize = 17; state.Appearance.Colors["Background"] = "#EFF5F9";
+            store.Save(state); state.Y = 140; for (int save = 0; save < 30; save++) store.Save(state);
             var restored = store.Load();
             Check(restored.X == -350 && restored.Y == 140 && restored.Scale == 1.25, "salva posicao e tamanho com substituicao atomica");
             Check(restored.ThreadId == "conversa-1" && restored.Messages[0].Text == state.Messages[0].Text, "preserva conversa e caracteres");
             Check(restored.SelectedPetId == "dewey", "restaura o pet selecionado ao reabrir");
             Check(restored.SelectedModel == "model-a" && restored.ReasoningEffort == "medium" && restored.ThreadMemoryMode == "disabled", "restaura escolhas de modelo, esforco e memoria");
+            Check(restored.Appearance.Mode == "light" && restored.Appearance.FontFamily == "Consolas" && restored.Appearance.FontSize == 17 && restored.Appearance.Colors["Background"] == "#EFF5F9", "restaura tema, fonte, tamanho e cores personalizadas");
             File.WriteAllText(Path.Combine(directory, "state.json"), "arquivo quebrado");
             Check(store.Load().Messages.Count == 0, "recupera estado corrompido sem impedir inicializacao");
             File.WriteAllText(Path.Combine(directory, "state.json"), "{\"Scale\":99,\"Messages\":null}");
             Check(store.Load().Scale == 1.8, "normaliza tamanho fora do intervalo");
             File.WriteAllText(Path.Combine(directory, "state.json"), "{\"Messages\":[{\"Role\":\"assistant\",\"Text\":\"Resposta antiga\"}]}");
             Check(store.Load().Messages[0].PetName == "PimpDogg", "preserva a autoria de mensagens de versoes anteriores");
+            Check(store.Load().Appearance.Mode == "dark" && store.Load().Appearance.Colors.Count == Theme.Colors.Length, "usa a paleta padrao em preferencias antigas sem aparencia");
+            File.WriteAllText(Path.Combine(directory, "state.json"), "{\"Appearance\":{\"FontSize\":999,\"Colors\":{\"Background\":\"invalida\"}}}");
+            restored = store.Load();
+            Check(restored.Appearance.FontSize == 22 && restored.Appearance.Colors["Background"] == "#17131C", "recupera cores invalidas e limita tamanho da fonte ao carregar");
         }
         private static void TestPosition()
         {
@@ -184,6 +192,14 @@ namespace Negotchi
             var tokens = Json.Map("total", Json.Map("totalTokens", 12345L, "inputTokens", 10000L, "outputTokens", 2345L), "last", Json.Map("totalTokens", 100L), "modelContextWindow", 200000L);
             usage = CodexCommands.UsageText(empty, new RpcRead { Data = Json.Map("rateLimits", Json.Map("primary", Json.Map("usedPercent", 25, "windowDurationMins", 300))) }, empty, tokens);
             Check(usage.Contains("12.345") && usage.Contains("5 horas: 25% usado"), "formata tokens reais e janelas de limites");
+            var limits = new RpcRead { Data = Json.Map("rateLimits", Json.Map("primary", Json.Map("usedPercent", 25, "windowDurationMins", 300), "secondary", Json.Map("usedPercent", 60, "windowDurationMins", 10080))) };
+            string available = CodexCommands.AvailableLimitsText(limits);
+            Check(available == "Disponivel: 75% (5 horas) | 40% (7 dias)", "mostra o percentual restante de cada janela da conta");
+            limits.Data = Json.Map("rateLimitsByLimitId", Json.Map("codex", Json.Map("limitId", "codex", "primary", Json.Map("usedPercent", 100)), "extra", Json.Map("limitName", "Extra", "primary", Json.Map("usedPercent", 12.5))));
+            available = CodexCommands.AvailableLimitsText(limits);
+            Check(available.Contains("codex: 0%") && available.Contains("Extra: 87,5%"), "preserva limites separados e percentuais fracionarios");
+            Check(CodexCommands.AvailableLimitsText(empty) == "Limites nao informados" && CodexCommands.AvailableLimitsText(new RpcRead { Error = "Falha" }) == "Limites indisponiveis", "nao inventa saldo quando o servico nao informa limites");
+            Check(CodexCommands.AvailableLimitsText(new RpcRead { Data = Json.Map("rateLimits", Json.Map("primary", Json.Map("usedPercent", null), "secondary", Json.Map("usedPercent", double.NaN))) }) == "Limites nao informados", "ignora percentuais ausentes ou invalidos");
             var previous = new MemoryPreferences { FeatureEnabled = null, UseMemories = true, GenerateMemories = false };
             Check(CodexCommands.MemoryEdits(previous, new MemoryPreferences { FeatureEnabled = null, UseMemories = true, GenerateMemories = false }).Length == 0, "nao regrava preferencias de memoria sem alteracao");
             Check(CodexCommands.MemoryEdits(previous, new MemoryPreferences { FeatureEnabled = true, UseMemories = null, GenerateMemories = false }).Length == 1, "mantem opcoes indeterminadas e altera apenas a escolha explicita");
@@ -233,6 +249,7 @@ namespace Negotchi
                     Check(models.Count > 0 && models.All(m => m.Efforts != null), "consulta modelos do Codex real sem inferencia");
                     var skills = await commands.Skills(output);
                     Check(skills.All(s => s.Name.Length > 0 && s.Path.Length > 0), "consulta o catalogo real de skills");
+                    Check(skills.Any(s => s.Name == "create-pet" && s.Enabled), "Codex real descobre a skill create-pet neste projeto");
                     string thread = Json.Text(Json.Object(result, "thread"), "id");
                     await client.RequestAsync("thread/settings/update", CodexCommands.ModelSettings(thread, new ModelSelection { Model = models[0].Model, Effort = models[0].DefaultEffort }));
                     Check(true, "Codex real aceita a troca de modelo e esforco");
@@ -250,8 +267,12 @@ namespace Negotchi
         private static void TestViews()
         {
             var application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            Theme.Apply(Theme.Preset("dark"));
             var assets = new PetAssets(); var chat = new ChatWindow(assets); chat.SetFolder(@"C:\Users\Voce\Documents");
+            var connectButton = FindButton((FrameworkElement)chat.Content, "Conectar conta");
+            Check(connectButton.Visibility == Visibility.Collapsed, "aguarda a consulta da conta antes de oferecer login");
             chat.SetConnected(false); chat.SetStatus("Conecte sua conta para comecar.");
+            Check(connectButton.Visibility == Visibility.Visible, "exibe Conectar conta quando nao ha conta conectada");
             chat.AddMessage("assistant", "Cheguei. Pode me arrastar pela tela e clicar em mim para conversar.\n\nQuer perguntar alguma coisa ou abrir um arquivo?");
             chat.AddMessage("user", "PimpDogg, abre minhas anotacoes.");
             chat.AddMessage("assistant", "Claro. Me diga o caminho ou use o botao Abrir arquivo.");
@@ -259,6 +280,17 @@ namespace Negotchi
             Check(ButtonFits((FrameworkElement)chat.Content, "Enviar"), "mantem o envio visivel no tamanho inicial");
             Render((FrameworkElement)chat.Content, 414, 481, Path.Combine(output, "chat-compact.png"));
             Check(ButtonFits((FrameworkElement)chat.Content, "Enviar"), "mantem o envio visivel no tamanho minimo");
+            chat.SetConnected(true, "usuario@example.com");
+            chat.SetAccountLimits("Disponivel: 75% (5 horas) | 40% (7 dias)");
+            Check(connectButton.Visibility == Visibility.Collapsed && Descendants<TextBlock>((FrameworkElement)chat.Content).Any(text => text.Text == "usuario@example.com"), "substitui o botao pelo e-mail da conta conectada");
+            Render((FrameworkElement)chat.Content, 464, 621, Path.Combine(output, "chat-account-preview.png"));
+            Render((FrameworkElement)chat.Content, 414, 481, Path.Combine(output, "chat-account-compact.png"));
+            Check(ButtonFits((FrameworkElement)chat.Content, "Enviar"), "mantem o envio acessivel com os dados da conta no tamanho minimo");
+            chat.SetConnected(false);
+            Check(!Descendants<TextBlock>((FrameworkElement)chat.Content).Any(text => text.Text.Contains("usuario@example.com") || text.Text.Contains("75%")), "limpa e-mail e limites ao desconectar");
+            chat.SetConnected(true);
+            Check(Descendants<TextBlock>((FrameworkElement)chat.Content).Any(text => text.Text == "Conta conectada (e-mail nao informado)"), "mantem conta conectada quando o servico nao informa e-mail");
+            chat.SetConnected(false);
             var composer = (TextBox)typeof(ChatWindow).GetField("input", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(chat);
             string commandText = null, sentText = null;
             chat.CommandRequested += value => commandText = value; chat.Send += value => sentText = value;
@@ -278,7 +310,38 @@ namespace Negotchi
             var state = new AppState(); var pet = new PetWindow(assets, state, delegate { }, delegate { });
             Render((FrameworkElement)pet.Content, 192, 252, Path.Combine(output, "pet-preview.png"));
             Check(File.Exists(Path.Combine(output, "pet-preview.png")), "renderiza janela transparente com PimpDogg original");
+            TestAppearanceViews(chat, pet, composer);
             pet.Close(); chat.CloseForExit(); application.Shutdown();
+        }
+        private static void TestAppearanceViews(ChatWindow chat, PetWindow pet, TextBox composer)
+        {
+            chat.ShowConversation();
+            var wheel = new ColorWheel { SelectedColor = Color.FromRgb(64, 128, 192) };
+            Check(wheel.SelectedColor == Color.FromRgb(64, 128, 192), "roda seletora preserva a cor inicial ao converter RGB e HSV");
+            wheel.Brightness = 0; Check(wheel.SelectedColor == Colors.Black, "roda seletora permite preto pelo controle de luminosidade");
+            wheel.SelectedColor = Colors.White; Check(wheel.SelectedColor == Colors.White && ColorWheel.FromHsv(120, 1, 1) == Colors.Lime, "roda seletora representa branco e matizes saturadas");
+            var appearance = new AppearanceWindow(null, Theme.Preset("dark"));
+            Render((FrameworkElement)appearance.Content, 736, 677, Path.Combine(output, "appearance-preview.png"));
+            Check(Theme.Colors.All(option => FindButton((FrameworkElement)appearance.Content, "Cor: " + option.Label) != null), "cada funcao de cor tem acesso a roda seletora");
+            Check(FindButton((FrameworkElement)chat.Content, "Aparencia") != null, "oferece o menu Aparencia no cabecalho");
+            appearance.Close();
+            var body = chat.AddMessage("assistant", "Mensagem que deve ser preservada."); composer.Text = "Rascunho preservado";
+            string petId = chat.ActivePetId;
+            var custom = Theme.Preset("light"); custom.FontFamily = "Consolas"; custom.FontSize = 18; custom.Colors["Background"] = "#EAF3F8"; custom.Colors["SelectedButton"] = "#2F6379"; custom.Colors["SpeechBubble"] = "#A0D7E8";
+            Theme.Apply(custom);
+            Render((FrameworkElement)chat.Content, 464, 700, Path.Combine(output, "chat-light-preview.png"));
+            Check(((SolidColorBrush)chat.Background).Color == (Color)ColorConverter.ConvertFromString("#EAF3F8") && ((SolidColorBrush)FindButton((FrameworkElement)chat.Content, "Enviar").Background).Color == (Color)ColorConverter.ConvertFromString("#2F6379"), "atualiza fundo e botoes existentes sem recriar o chat");
+            Check(Math.Abs(body.FontSize - 18) < 0.01 && body.FontFamily.Source == "Consolas", "atualiza fonte e tamanho das mensagens ja exibidas");
+            var later = chat.AddMessage("assistant", "Mensagem nova.");
+            Check(Math.Abs(later.FontSize - 18) < 0.01 && later.FontFamily.Source == "Consolas", "novas mensagens seguem a tipografia configurada");
+            var bubble = (Border)typeof(PetWindow).GetField("bubble", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(pet);
+            Check(((SolidColorBrush)bubble.Background).Color == (Color)ColorConverter.ConvertFromString("#A0D7E8"), "aplica a cor do balao ao pet existente");
+            Check(body.Text == "Mensagem que deve ser preservada." && composer.Text == "Rascunho preservado" && chat.ActivePetId == petId, "troca visual preserva mensagens, rascunho e pet selecionado");
+            custom.FontSize = 22; Theme.Apply(custom);
+            Render((FrameworkElement)chat.Content, 414, (int)chat.MinHeight - 79, Path.Combine(output, "chat-large-font-preview.png"));
+            Check(ButtonFits((FrameworkElement)chat.Content, "Enviar"), "preserva acesso ao envio com o maior tamanho de fonte");
+            Theme.Apply(Theme.Preset("dark"));
+            Check(Math.Abs(body.FontSize - 13) < 0.01 && body.FontFamily.Source == "Segoe UI", "restaura a tipografia sem acumular escala");
         }
         private static bool ButtonFits(FrameworkElement root, string content)
         {
@@ -318,6 +381,8 @@ namespace Negotchi
             bool initialized = false; string toolCall = null;
             var config = Json.Map("model", "model-a", "model_reasoning_effort", "low", "features", Json.Map("memories", false), "memories", Json.Map("use_memories", true, "generate_memories", false));
             var modelSettings = Json.Map(); var calls = new List<string>();
+            bool accountLoggedIn = true, limitsUnavailable = false;
+            double accountUsedPercent = 25;
             string line;
             while ((line = Console.ReadLine()) != null)
             {
@@ -352,8 +417,30 @@ namespace Negotchi
                 else if (method == "memory/status") Write(Json.Map("id", id, "result", Json.Map("v2Ready", false, "v2ConsolidatedThreads", 3)));
                 else if (method == "thread/memoryMode/set") Write(Json.Map("id", id, "result", Json.Map()));
                 else if (method == "thread/settings/update") { modelSettings = parameters; Write(Json.Map("id", id, "result", Json.Map())); }
-                else if (method == "account/read") Write(Json.Map("id", id, "result", Json.Map("account", Json.Map("type", "chatgpt", "planType", "plus"))));
-                else if (method == "account/rateLimits/read") Write(Json.Map("id", id, "result", Json.Map("rateLimits", Json.Map("primary", Json.Map("usedPercent", 25, "windowDurationMins", 300)))));
+                else if (method == "account/read") Write(Json.Map("id", id, "result", Json.Map("account", accountLoggedIn ? Json.Map("type", "chatgpt", "email", "usuario@example.com", "planType", "plus") : null)));
+                else if (method == "account/rateLimits/read")
+                {
+                    if (limitsUnavailable) Write(Json.Map("id", id, "error", Json.Map("code", -32000, "message", "Limites temporariamente indisponiveis")));
+                    else Write(Json.Map("id", id, "result", Json.Map("rateLimits", Json.Map("primary", Json.Map("usedPercent", accountUsedPercent, "windowDurationMins", 300), "secondary", Json.Map("usedPercent", 60, "windowDurationMins", 10080)))));
+                }
+                else if (method == "test/account")
+                {
+                    accountLoggedIn = Equals(Json.Get(parameters, "connected"), true);
+                    Write(Json.Map("id", id, "result", Json.Map()));
+                    Write(Json.Map("method", "account/updated", "params", Json.Map("authMode", accountLoggedIn ? "chatgpt" : null)));
+                }
+                else if (method == "test/limits")
+                {
+                    if (Json.Get(parameters, "usedPercent") != null) accountUsedPercent = Convert.ToDouble(parameters["usedPercent"]);
+                    limitsUnavailable = Equals(Json.Get(parameters, "unavailable"), true);
+                    Write(Json.Map("id", id, "result", Json.Map()));
+                    if (!Equals(Json.Get(parameters, "notify"), false)) Write(Json.Map("method", "account/rateLimits/updated", "params", Json.Map("rateLimits", Json.Map("primary", Json.Map("usedPercent", accountUsedPercent, "windowDurationMins", 300)))));
+                }
+                else if (method == "test/completeTurn")
+                {
+                    Write(Json.Map("id", id, "result", Json.Map()));
+                    Write(Json.Map("method", "turn/completed", "params", Json.Map("turn", Json.Map("status", "completed"))));
+                }
                 else if (method == "account/usage/read") Write(Json.Map("id", id, "result", Json.Map("summary", Json.Map("lifetimeTokens", 12345, "peakDailyTokens", 5000))));
                 else if (method == "mcpServerStatus/list") Write(Json.Map("id", id, "result", Json.Map("data", new[] { Json.Map("name", "arquivos", "authStatus", "notLoggedIn", "tools", Json.Map("read_file", Json.Map())) })));
                 else if (method == "test/state") Write(Json.Map("id", id, "result", Json.Map("modelSettings", modelSettings, "calls", calls.ToArray())));
@@ -420,6 +507,30 @@ namespace Negotchi
                     {
                         timer.Stop();
                         Check(chat.IsVisible, "abre a janela real de conversa");
+                        var accountAgent = (CodexClient)typeof(NegotchiApp).GetField("agent", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(application);
+                        var accountEmail = (TextBlock)typeof(ChatWindow).GetField("accountEmail", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(chat);
+                        var accountLimits = (TextBlock)typeof(ChatWindow).GetField("accountLimits", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(chat);
+                        var accountInfo = (Border)typeof(ChatWindow).GetField("accountInfo", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(chat);
+                        var connectButton = FindButton((FrameworkElement)chat.Content, "Conectar conta");
+                        await WaitFor(() => accountEmail.Text == "usuario@example.com" && accountLimits.Text.Contains("75%"));
+                        Check(connectButton.Visibility == Visibility.Collapsed && accountLimits.Text.Contains("40%"), "reconhece a conta ao abrir e mostra e-mail e limites sem clicar em conectar");
+                        await accountAgent.RequestAsync("test/limits", Json.Map("usedPercent", 35));
+                        await WaitFor(() => accountLimits.Text.Contains("65%"));
+                        Check(true, "atualiza o percentual ao receber notificacao de limites");
+                        await accountAgent.RequestAsync("test/limits", Json.Map("usedPercent", 45, "notify", false));
+                        await accountAgent.RequestAsync("test/completeTurn", Json.Map());
+                        await WaitFor(() => accountLimits.Text.Contains("55%"));
+                        Check(true, "consulta os limites ao concluir um pedido mesmo sem notificacao de consumo");
+                        await accountAgent.RequestAsync("test/limits", Json.Map("unavailable", true));
+                        await WaitFor(() => accountLimits.Text == "Limites indisponiveis");
+                        Check(connectButton.Visibility == Visibility.Collapsed && accountEmail.Text == "usuario@example.com", "falha de limites preserva a conta sem exibir saldo antigo");
+                        await accountAgent.RequestAsync("test/account", Json.Map("connected", false));
+                        await WaitFor(() => connectButton.Visibility == Visibility.Visible);
+                        Check(accountInfo.Visibility == Visibility.Collapsed && accountEmail.Text == "" && accountLimits.Text == "", "logout restaura o botao e remove dados da conta");
+                        await accountAgent.RequestAsync("test/limits", Json.Map("notify", false));
+                        await accountAgent.RequestAsync("test/account", Json.Map("connected", true));
+                        await WaitFor(() => accountEmail.Text == "usuario@example.com" && accountLimits.Text.Contains("55%"));
+                        Check(connectButton.Visibility == Visibility.Collapsed, "reconexao restaura e-mail e percentual disponivel");
                         chat.ShowPets();
                         Render((FrameworkElement)chat.Content, (int)chat.ActualWidth - 16, (int)chat.ActualHeight - 39, Path.Combine(directory, "ui-smoke-pets.png"));
                         var catalog = new PetCatalog();
@@ -436,8 +547,10 @@ namespace Negotchi
                         Check(selectedTray.Text.Contains("Dewey"), "atualiza o icone e o nome da bandeja");
                         chat.ShowConversation(); chat.UpdateLayout();
                         var composer = (TextBox)typeof(ChatWindow).GetField("input", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(chat);
-                        composer.Text = "/";
+                        chat.Activate();
                         composer.Focus();
+                        await WaitFor(() => composer.IsKeyboardFocused);
+                        composer.Text = "/";
                         composer.UpdateLayout();
                         var menu = typeof(ChatWindow).GetField("commandMenu", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(chat);
                         var popup = (System.Windows.Controls.Primitives.Popup)typeof(CommandMenu).GetField("popup", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(menu);
@@ -463,6 +576,7 @@ namespace Negotchi
                             FindButton(window, "Aplicar").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                         });
                         Check(initialStore.Load().ThreadMemoryMode == "disabled", "aplica permissao de memorias pela janela real");
+                        composer.Text = "Rascunho preservado";
                         await CommandDialogSmoke(application, "/skills", "Skills do Codex", window => {
                             var list = Descendants<ListBox>(window).Single(); list.SelectedItem = list.Items.Cast<SkillChoice>().First(s => s.Enabled);
                             Render((FrameworkElement)window.Content, 544, 531, Path.Combine(directory, "ui-skills.png"));
@@ -475,6 +589,44 @@ namespace Negotchi
                         var agent = (CodexClient)typeof(NegotchiApp).GetField("agent", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(application);
                         var captured = await agent.RequestAsync("test/state", null);
                         Check(!Json.Items(captured, "calls").Contains("turn/start"), "comandos de controle nao viram turnos de perguntas ao modelo");
+                        var beforeAppearance = initialStore.Load();
+                        DialogSmoke(application, () => FindButton((FrameworkElement)chat.Content, "Aparencia").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)), "Aparencia", window => {
+                            var appearance = (AppearanceWindow)window;
+                            var mode = (ComboBox)typeof(AppearanceWindow).GetField("mode", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(appearance);
+                            var font = (ComboBox)typeof(AppearanceWindow).GetField("font", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(appearance);
+                            var size = (Slider)typeof(AppearanceWindow).GetField("fontSize", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(appearance);
+                            mode.SelectedIndex = 1; font.SelectedItem = "Consolas"; size.Value = 16;
+                            foreach (var option in Theme.Colors)
+                            {
+                                DialogSmoke(application, () => FindButton(window, "Cor: " + option.Label).RaiseEvent(new RoutedEventArgs(Button.ClickEvent)), "Cor: " + option.Label, picker => {
+                                    var wheel = Descendants<ColorWheel>(picker).Single();
+                                    string chosen = option.Key == "Background" ? "#EAF3F8" : option.Key == "SelectedButton" ? "#2F6379" : Theme.Preset("light").Colors[option.Key];
+                                    wheel.SelectedColor = (Color)ColorConverter.ConvertFromString(chosen);
+                                    Check(Descendants<TextBox>(picker).Single().Text == chosen, "roda seletora atualiza a cor: " + option.Label);
+                                    if (option.Key == "Background")
+                                    {
+                                        var content = (FrameworkElement)picker.Content;
+                                        Render(content, (int)(content.ActualWidth + content.Margin.Left + content.Margin.Right), (int)(content.ActualHeight + content.Margin.Top + content.Margin.Bottom), Path.Combine(directory, "ui-color-wheel.png"));
+                                        Check(ButtonFits(content, "Usar cor"), "mantem a confirmacao da cor visivel na janela");
+                                    }
+                                    FindButton(picker, "Usar cor").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                                });
+                            }
+                            var dialogContent = (FrameworkElement)window.Content;
+                            Render(dialogContent, (int)(dialogContent.ActualWidth + dialogContent.Margin.Left + dialogContent.Margin.Right), (int)(dialogContent.ActualHeight + dialogContent.Margin.Top + dialogContent.Margin.Bottom), Path.Combine(directory, "ui-appearance.png"));
+                            FindButton(window, "Aplicar").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        });
+                        var afterAppearance = initialStore.Load();
+                        Check(afterAppearance.Appearance.Mode == "light" && afterAppearance.Appearance.FontFamily == "Consolas" && afterAppearance.Appearance.FontSize == 16 && afterAppearance.Appearance.Colors["Background"] == "#EAF3F8", "salva a aparencia aplicada pelo menu e pela roda seletora");
+                        Check(((SolidColorBrush)chat.Background).Color == (Color)ColorConverter.ConvertFromString("#EAF3F8") && composer.FontFamily.Source == "Consolas", "aplica tema e fonte imediatamente na janela existente");
+                        Check(afterAppearance.ThreadId == beforeAppearance.ThreadId && afterAppearance.Messages.Count == beforeAppearance.Messages.Count && afterAppearance.Folder == beforeAppearance.Folder && composer.Text == "Rascunho preservado", "menu de aparencia preserva conversa, pasta e rascunho");
+                        DialogSmoke(application, () => FindButton((FrameworkElement)chat.Content, "Aparencia").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)), "Aparencia", window => {
+                            FindButton(window, "Restaurar padrao").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            var size = (Slider)typeof(AppearanceWindow).GetField("fontSize", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(window);
+                            Check(size.Value == 13, "restaurar padrao recupera a configuracao original na previa");
+                            FindButton(window, "Cancelar").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        });
+                        Check(initialStore.Load().Appearance.Mode == "light" && ((SolidColorBrush)chat.Background).Color == (Color)ColorConverter.ConvertFromString("#EAF3F8"), "cancelar mantem as preferencias aplicadas anteriormente");
                         Render((FrameworkElement)chat.Content, (int)chat.ActualWidth - 16, (int)chat.ActualHeight - 39, Path.Combine(directory, "ui-smoke-chat.png"));
                         chat.Close(); Check(!chat.IsVisible && pet.IsVisible, "fechar o chat mantem o personagem em execucao");
                         var trayField = typeof(NegotchiApp).GetField("tray", BindingFlags.NonPublic | BindingFlags.Instance);
@@ -489,6 +641,34 @@ namespace Negotchi
             finally { Environment.SetEnvironmentVariable("NEGOTCHI_CODEX_PATH", previousExecutable); }
         }
 
+        private static void DialogSmoke(NegotchiApp application, Action open, string title, Action<Window> interact)
+        {
+            bool found = false; Exception interactionError = null; var deadline = DateTime.UtcNow.AddSeconds(10);
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(70) };
+            timer.Tick += delegate {
+                var window = application.Windows.OfType<Window>().FirstOrDefault(candidate => candidate.IsVisible && candidate.Title == title);
+                if (window == null)
+                {
+                    if (DateTime.UtcNow >= deadline) { timer.Stop(); interactionError = new TimeoutException("A janela nao abriu: " + title); application.Shutdown(); }
+                    return;
+                }
+                found = true; timer.Stop();
+                try { window.UpdateLayout(); interact(window); }
+                catch (Exception error) { interactionError = error; window.Close(); }
+            };
+            timer.Start();
+            try { open(); if (interactionError != null) throw interactionError; Check(found, "abre a janela: " + title); }
+            finally { timer.Stop(); }
+        }
+        private static async Task WaitFor(Func<bool> condition)
+        {
+            var deadline = DateTime.UtcNow.AddSeconds(8);
+            while (!condition())
+            {
+                if (DateTime.UtcNow >= deadline) throw new Exception("A interface nao recebeu a atualizacao esperada.");
+                await Task.Delay(25);
+            }
+        }
         private static IEnumerable<T> Descendants<T>(DependencyObject root) where T : DependencyObject
         {
             if (root is T) yield return (T)root;

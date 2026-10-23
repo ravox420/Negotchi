@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.IO;
-using System.Drawing;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -31,13 +29,14 @@ namespace Negotchi
                 AddSystem("Comando nao disponivel nesta interface: " + invocation.Name + ". Use /help para ver os comandos suportados."); Save(); return;
             }
             string name = invocation.Command.Name;
-            if (invocation.Arguments.Length > 0 && name != "/model" && name != "/skills")
+            if (invocation.Arguments.Length > 0 && name != "/model" && name != "/skills" && name != "/create-pet")
             {
                 AddSystem("Este comando nao recebe argumentos. Use " + name + "."); Save(); return;
             }
             if (name == "/new") { NewChat(); return; }
             if (name == "/pets") { OpenPetPicker(); return; }
             if (name == "/import-pet") { ImportPet(); return; }
+            if (name == "/create-pet") { CreatePet(invocation.Arguments); return; }
             if (name == "/login") { Connect(); return; }
             commandBusy = true; chat.SetCommandBusy(true);
             string feedback = "Comando concluido.", animation = "idle";
@@ -87,12 +86,17 @@ namespace Negotchi
                 }
                 else if (name == "/usage")
                 {
+                    int revision = accountRevision;
                     var account = commands.Read("account/read", Json.Map("refreshToken", false));
                     var limits = commands.Read("account/rateLimits/read", null);
                     var usage = commands.Read("account/usage/read", null);
                     var config = commands.ReadConfig(state.Folder);
                     await Task.WhenAll(account, limits, usage, config);
-                    if (account.Result.Data != null) { accountConnected = Json.Get(account.Result.Data, "account") != null; chat.SetConnected(accountConnected); }
+                    if (revision == accountRevision)
+                    {
+                        if (account.Result.Data != null) UpdateAccount(Json.Get(account.Result.Data, "account") != null, Json.Text(Json.Object(account.Result.Data, "account"), "email"));
+                        if (accountConnected) chat.SetAccountLimits(CodexCommands.AvailableLimitsText(limits.Result), limits.Result.Error);
+                    }
                     string model = !string.IsNullOrEmpty(effectiveModel) ? effectiveModel : !string.IsNullOrEmpty(state.SelectedModel) ? state.SelectedModel : Json.Text(config.Result, "model");
                     string information = "Pasta: " + state.Folder + "\nConversa: " + (state.ThreadId ?? "Ainda nao iniciada") + "\nModelo: " + (string.IsNullOrEmpty(model) ? "Padrao do Codex" : model) + "\n\n";
                     CommandDialogs.Info(chat, "Uso e status do Codex", information + CodexCommands.UsageText(account.Result, limits.Result, usage.Result, state.TokenUsage));
@@ -133,29 +137,5 @@ namespace Negotchi
             finally { commandBusy = false; chat.SetCommandBusy(false); Status(feedback, animation); Save(); }
         }
 
-        private void ImportPet()
-        {
-            OpenChat();
-            var manifestDialog = new Microsoft.Win32.OpenFileDialog { Title = "Escolha o pet.json", Filter = "Manifesto de pet (pet.json)|pet.json|JSON|*.json", CheckFileExists = true, Multiselect = false };
-            if (manifestDialog.ShowDialog(chat) != true) return;
-            var sheetDialog = new Microsoft.Win32.OpenFileDialog { Title = "Escolha o spritesheet do pet", Filter = "Imagens PNG|*.png|Todas as imagens|*.png;*.webp", CheckFileExists = true, Multiselect = false };
-            if (sheetDialog.ShowDialog(chat) != true) return;
-            try
-            {
-                var manifest = Json.Decode(File.ReadAllText(manifestDialog.FileName));
-                string id = Json.Text(manifest, "id");
-                if (string.IsNullOrWhiteSpace(id) || id.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0) throw new InvalidDataException("O pet.json precisa ter um id de pasta valido.");
-                var frame = Json.Object(manifest, "frame"); int width = Convert.ToInt32(frame["width"]), height = Convert.ToInt32(frame["height"]), columns = Convert.ToInt32(frame["columns"]), rows = Convert.ToInt32(frame["rows"]);
-                using (var image = Image.FromFile(sheetDialog.FileName))
-                    if (image.Width != width * columns || image.Height != height * rows) throw new InvalidDataException("O spritesheet nao corresponde ao frame declarado no pet.json.");
-                string petsRoot = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pets"); Directory.CreateDirectory(petsRoot);
-                string destination = Path.Combine(petsRoot, id); Directory.CreateDirectory(destination);
-                File.Copy(manifestDialog.FileName, Path.Combine(destination, "pet.json"), true);
-                File.Copy(sheetDialog.FileName, Path.Combine(destination, "spritesheet.png"), true);
-                File.Copy(sheetDialog.FileName, Path.Combine(destination, "preview.png"), true);
-                AddSystem("Pet " + id + " importado. Recompile ou reinicie o app para ele aparecer na aba Pets."); Save();
-            }
-            catch (Exception error) { AddSystem("Nao foi possivel importar o pet: " + error.Message); Save(); }
-        }
     }
 }

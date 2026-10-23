@@ -22,6 +22,9 @@ namespace Negotchi
         private readonly Stopwatch animationClock = Stopwatch.StartNew();
         private readonly Random random = new Random();
         private string animation = "idle";
+        private string contextAnimation = "idle";
+        private double lastDragX;
+        internal string CurrentAnimation { get { return animation; } }
         private DateTime nextIdle = DateTime.UtcNow.AddSeconds(20), bubbleUntil = DateTime.UtcNow.AddSeconds(8);
         private bool busy, pressing, dragged;
         private Point pressPoint, originalPosition;
@@ -34,8 +37,8 @@ namespace Negotchi
             AllowsTransparency = true; Background = Brushes.Transparent; ShowInTaskbar = false; Topmost = state.Topmost;
             Width = assets.FrameWidth * state.Scale; Height = assets.FrameHeight * state.Scale + 44;
             var layout = new DockPanel { Background = Brushes.Transparent, LastChildFill = true };
-            bubbleText = new TextBlock { Text = "Bora conversar?", Foreground = Theme.Background, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Center };
-            bubble = new Border { Child = bubbleText, Background = Theme.Pink, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(2, 2, 2, 6), Height = 32, VerticalAlignment = VerticalAlignment.Top, Cursor = Cursors.Hand };
+            bubbleText = new TextBlock { Text = "Bora conversar?", Foreground = Theme.SpeechBubbleText, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Center };
+            bubble = new Border { Child = bubbleText, Background = Theme.SpeechBubble, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(2, 2, 2, 6), MinHeight = 32, VerticalAlignment = VerticalAlignment.Top, Cursor = Cursors.Hand };
             DockPanel.SetDock(bubble, Dock.Top); layout.Children.Add(bubble);
             image = new Image { Source = assets.Frames[0], Stretch = Stretch.Uniform, Cursor = Cursors.Hand, ToolTip = "Clique para conversar. Arraste para mover. Botao direito para opcoes." };
             RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
@@ -44,9 +47,10 @@ namespace Negotchi
             image.MouseLeftButtonDown += OnPress;
             image.MouseMove += OnMove;
             image.MouseLeftButtonUp += OnRelease;
-            image.LostMouseCapture += delegate { pressing = false; };
+            image.LostMouseCapture += delegate { if (pressing) { pressing = false; if (dragged) { ClampPosition(); PersistPosition(); } Play(contextAnimation); } };
             MouseWheel += delegate(object sender, MouseWheelEventArgs args) { ResizePet(state.Scale + (args.Delta > 0 ? 0.1 : -0.1)); args.Handled = true; };
             ContextMenu = BuildMenu();
+            Theme.BindTypography(this);
             Loaded += delegate { RestorePosition(); Play("waving"); };
             clock = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(20) };
             clock.Tick += delegate { Tick(); }; clock.Start();
@@ -55,7 +59,7 @@ namespace Negotchi
 
         public void Play(string name)
         {
-            if (!assets.Animations.ContainsKey(name)) name = "idle";
+            name = assets.ResolveAnimation(name);
             animation = name; animationClock.Restart();
             image.Source = assets.Frames[assets.Animations[name].Frames[0]];
         }
@@ -64,6 +68,7 @@ namespace Negotchi
         public void SetPet(PetAssets replacement)
         {
             assets = replacement; Title = "Negotchi - " + assets.DisplayName; Icon = assets.Frames[0];
+            contextAnimation = "idle";
             ContextMenu = BuildMenu(); ResizePet(state.Scale); nextIdle = DateTime.UtcNow.AddSeconds(20);
             Play("waving");
             Mood("Oi, sou " + assets.DisplayName + ".", "waving", false);
@@ -72,16 +77,19 @@ namespace Negotchi
         public void Mood(string text, string name, bool working)
         {
             busy = working; bubbleText.Text = text; bubbleUntil = DateTime.UtcNow.AddSeconds(7); bubble.Visibility = Visibility.Visible;
-            if (animation != name) Play(name);
+            contextAnimation = assets.ResolveAnimation(name);
+            if (!pressing && animation != contextAnimation && (!busy || name == "waiting" || name == "failed" || animationClock.ElapsedMilliseconds >= 160)) Play(contextAnimation);
         }
 
         private void Tick()
         {
+            if (busy && !pressing && animation != contextAnimation && animationClock.ElapsedMilliseconds >= 160) Play(contextAnimation);
             var track = assets.Animations[animation];
             int tick = (int)(animationClock.Elapsed.TotalSeconds * track.Fps);
             if (tick >= track.Frames.Length && !track.Loop)
             {
-                Play(track.Fallback); track = assets.Animations[animation]; tick = 0;
+                Play(pressing && dragged ? animation : busy ? contextAnimation : track.Fallback); track = assets.Animations[animation]; tick = 0;
+                if (!busy && !pressing) contextAnimation = animation;
             }
             image.Source = assets.Frames[track.Frames[tick % track.Frames.Length]];
             bubble.Visibility = busy || DateTime.UtcNow < bubbleUntil ? Visibility.Visible : Visibility.Hidden;
@@ -94,6 +102,7 @@ namespace Negotchi
         private void OnPress(object sender, MouseButtonEventArgs args)
         {
             pressing = true; dragged = false; pressPoint = PointToScreen(args.GetPosition(this)); originalPosition = new Point(Left, Top);
+            lastDragX = originalPosition.X;
             image.CaptureMouse(); args.Handled = true;
         }
 
@@ -105,7 +114,7 @@ namespace Negotchi
             var delta = source.CompositionTarget.TransformFromDevice.Transform(current - pressPoint);
             if (!dragged && delta.Length < 5) return;
             dragged = true; Left = originalPosition.X + delta.X; Top = originalPosition.Y + delta.Y;
-            string direction = delta.X >= 0 ? "running-right" : "running-left";
+            string direction = Left >= lastDragX ? "running-right" : "running-left"; lastDragX = Left;
             if (animation != direction) Play(direction);
         }
 
@@ -113,7 +122,7 @@ namespace Negotchi
         {
             if (!pressing) return;
             pressing = false; image.ReleaseMouseCapture();
-            if (dragged) { ClampPosition(); PersistPosition(); Play(busy ? "running" : "idle"); }
+            if (dragged) { ClampPosition(); PersistPosition(); Play(contextAnimation); }
             else talk();
             args.Handled = true;
         }
@@ -181,6 +190,7 @@ namespace Negotchi
             AddMenu(menu, "Trazer para o canto da tela", Reposition);
             menu.Items.Add(new Separator());
             AddMenu(menu, "Sair do Negotchi", delegate { if (Quit != null) Quit(); });
+            Theme.BindTypography(menu);
             return menu;
         }
 
