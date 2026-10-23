@@ -36,6 +36,7 @@ namespace Negotchi
     {
         public string Role { get; set; }
         public string Text { get; set; }
+        public string PetName { get; set; }
     }
 
     public sealed class AppState
@@ -47,9 +48,14 @@ namespace Negotchi
         public string Folder { get; set; }
         public string ThreadId { get; set; }
         public List<ChatMessage> Messages { get; set; }
+        public string SelectedPetId { get; set; }
+        public string SelectedModel { get; set; }
+        public string ReasoningEffort { get; set; }
+        public string ThreadMemoryMode { get; set; }
+        public Dictionary<string, object> TokenUsage { get; set; }
         public AppState()
         {
-            X = -1; Y = -1; Scale = 1; Topmost = true;
+            X = -1; Y = -1; Scale = 1; Topmost = true; SelectedPetId = "PimpDogg";
             Folder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
             Messages = new List<ChatMessage>();
         }
@@ -67,6 +73,7 @@ namespace Negotchi
                 var state = new JavaScriptSerializer().Deserialize<AppState>(File.ReadAllText(path, Encoding.UTF8)) ?? new AppState();
                 state.Messages = state.Messages ?? new List<ChatMessage>();
                 state.Messages = state.Messages.Where(m => m != null && m.Text != null).ToList();
+                foreach (var message in state.Messages) if (message.Role == "assistant" && string.IsNullOrEmpty(message.PetName)) message.PetName = "PimpDogg";
                 if (double.IsNaN(state.Scale) || double.IsInfinity(state.Scale)) state.Scale = 1;
                 state.Scale = Math.Max(0.65, Math.Min(1.8, state.Scale));
                 if (double.IsNaN(state.X) || double.IsInfinity(state.X) || double.IsNaN(state.Y) || double.IsInfinity(state.Y)) { state.X = -1; state.Y = -1; }
@@ -97,15 +104,19 @@ namespace Negotchi
 
     internal sealed class PetAssets
     {
+        public readonly string Id, DisplayName, Description;
+        public readonly int FrameWidth, FrameHeight;
         public readonly BitmapSource[] Frames;
         public readonly Dictionary<string, AnimationTrack> Animations = new Dictionary<string, AnimationTrack>();
-        public PetAssets()
+        public PetAssets() : this("Negotchi.pet.json", "Negotchi.spritesheet.png") { }
+        public PetAssets(string manifestResource, string spritesheetResource)
         {
             var assembly = Assembly.GetExecutingAssembly();
             Dictionary<string, object> manifest;
-            using (var reader = new StreamReader(assembly.GetManifestResourceStream("Negotchi.pet.json"), Encoding.UTF8)) manifest = Json.Decode(reader.ReadToEnd());
+            using (var reader = new StreamReader(assembly.GetManifestResourceStream(manifestResource), Encoding.UTF8)) manifest = Json.Decode(reader.ReadToEnd());
+            Id = Json.Text(manifest, "id"); DisplayName = Json.Text(manifest, "displayName"); Description = Json.Text(manifest, "description");
             BitmapImage sheet;
-            using (var stream = assembly.GetManifestResourceStream("Negotchi.spritesheet.png"))
+            using (var stream = assembly.GetManifestResourceStream(spritesheetResource))
             {
                 sheet = new BitmapImage(); sheet.BeginInit(); sheet.CacheOption = BitmapCacheOption.OnLoad;
                 sheet.StreamSource = stream; sheet.EndInit(); sheet.Freeze();
@@ -113,7 +124,9 @@ namespace Negotchi
             var frame = Json.Object(manifest, "frame");
             int width = Convert.ToInt32(frame["width"]), height = Convert.ToInt32(frame["height"]);
             int columns = Convert.ToInt32(frame["columns"]), rows = Convert.ToInt32(frame["rows"]);
-            if (sheet.PixelWidth != columns * width || sheet.PixelHeight != rows * height) throw new InvalidDataException("A imagem do PimpDogg nao corresponde ao manifesto.");
+            FrameWidth = width; FrameHeight = height;
+            if (width <= 0 || height <= 0 || columns <= 0 || rows <= 0 || (long)columns * rows > 4096) throw new InvalidDataException("Grade do pet invalida.");
+            if (sheet.PixelWidth != (long)columns * width || sheet.PixelHeight != (long)rows * height) throw new InvalidDataException("A imagem de " + DisplayName + " nao corresponde ao manifesto.");
             Frames = new BitmapSource[columns * rows];
             for (int i = 0; i < Frames.Length; i++)
             {
@@ -124,11 +137,59 @@ namespace Negotchi
             {
                 var animation = (Dictionary<string, object>)entry.Value;
                 var track = new AnimationTrack { Frames = Json.Items(animation, "frames").Select(Convert.ToInt32).ToArray(), Fps = Convert.ToDouble(animation["fps"]), Loop = Convert.ToBoolean(animation["loop"]), Fallback = Json.Text(animation, "fallback") };
-                if (track.Frames.Length == 0 || track.Frames.Any(index => index < 0 || index >= Frames.Length) || track.Fps <= 0) throw new InvalidDataException("Animacao invalida: " + entry.Key);
+                if (track.Frames.Length == 0 || track.Frames.Any(index => index < 0 || index >= Frames.Length) || double.IsNaN(track.Fps) || double.IsInfinity(track.Fps) || track.Fps <= 0 || track.Fps > 60) throw new InvalidDataException("Animacao invalida: " + entry.Key);
                 Animations.Add(entry.Key, track);
             }
             if (!Animations.ContainsKey("idle") || Animations.Values.Any(track => !Animations.ContainsKey(track.Fallback))) throw new InvalidDataException("Animacao de repouso ausente.");
         }
+    }
+
+    internal sealed class PetDefinition
+    {
+        public readonly string Id, DisplayName, Description;
+        private readonly string manifestResource, sheetResource, previewResource;
+        private BitmapSource preview;
+        public PetDefinition(string manifest, string sheet, string thumbnail)
+        {
+            manifestResource = manifest; sheetResource = sheet; previewResource = thumbnail;
+            using (var reader = new StreamReader(Assembly.GetExecutingAssembly().GetManifestResourceStream(manifest), Encoding.UTF8))
+            {
+                var data = Json.Decode(reader.ReadToEnd()); Id = Json.Text(data, "id"); DisplayName = Json.Text(data, "displayName"); Description = Json.Text(data, "description");
+            }
+            if (string.IsNullOrWhiteSpace(Id) || string.IsNullOrWhiteSpace(DisplayName)) throw new InvalidDataException("Pet sem identificacao.");
+        }
+        public BitmapSource Preview
+        {
+            get
+            {
+                if (preview == null)
+                {
+                    using (var stream = Assembly.GetExecutingAssembly().GetManifestResourceStream(previewResource))
+                    {
+                        var image = new BitmapImage(); image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad; image.StreamSource = stream; image.EndInit(); image.Freeze(); preview = image;
+                    }
+                }
+                return preview;
+            }
+        }
+        public PetAssets Load() { return new PetAssets(manifestResource, sheetResource); }
+    }
+
+    internal sealed class PetCatalog
+    {
+        public readonly PetDefinition[] Pets;
+        public PetCatalog()
+        {
+            var pets = new List<PetDefinition> { new PetDefinition("Negotchi.pet.json", "Negotchi.spritesheet.png", "Negotchi.preview.png") };
+            foreach (var name in Assembly.GetExecutingAssembly().GetManifestResourceNames().Where(name => name.StartsWith("Negotchi.pets.", StringComparison.Ordinal) && name.EndsWith(".pet.json", StringComparison.Ordinal)))
+            {
+                string prefix = name.Substring(0, name.Length - "pet.json".Length);
+                pets.Add(new PetDefinition(name, prefix + "spritesheet.png", prefix + "preview.png"));
+            }
+            if (pets.Select(p => p.Id).Distinct(StringComparer.OrdinalIgnoreCase).Count() != pets.Count) throw new InvalidDataException("Existem pets com identificadores repetidos.");
+            Pets = pets.OrderBy(p => p.Id == "PimpDogg" ? 0 : 1).ThenBy(p => p.DisplayName, StringComparer.OrdinalIgnoreCase).ToArray();
+        }
+        public PetDefinition Find(string id) { return Pets.FirstOrDefault(p => string.Equals(p.Id, id, StringComparison.OrdinalIgnoreCase)) ?? Pets[0]; }
     }
 
     internal static class Theme

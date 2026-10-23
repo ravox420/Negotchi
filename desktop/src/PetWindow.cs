@@ -12,7 +12,7 @@ namespace Negotchi
 {
     internal sealed class PetWindow : Window
     {
-        private readonly PetAssets assets;
+        private PetAssets assets;
         private readonly AppState state;
         private readonly Action talk, save;
         private readonly Image image;
@@ -25,14 +25,14 @@ namespace Negotchi
         private DateTime nextIdle = DateTime.UtcNow.AddSeconds(20), bubbleUntil = DateTime.UtcNow.AddSeconds(8);
         private bool busy, pressing, dragged;
         private Point pressPoint, originalPosition;
-        public Action OpenFile, ChooseFolder, Quit;
+        public Action OpenFile, ChooseFolder, ChoosePet, Quit;
 
         public PetWindow(PetAssets petAssets, AppState appState, Action openChat, Action persist)
         {
             assets = petAssets; state = appState; talk = openChat; save = persist;
-            Title = "Negotchi - PimpDogg"; Icon = assets.Frames[0]; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
+            Title = "Negotchi - " + assets.DisplayName; Icon = assets.Frames[0]; WindowStyle = WindowStyle.None; ResizeMode = ResizeMode.NoResize;
             AllowsTransparency = true; Background = Brushes.Transparent; ShowInTaskbar = false; Topmost = state.Topmost;
-            Width = 192 * state.Scale; Height = 208 * state.Scale + 44;
+            Width = assets.FrameWidth * state.Scale; Height = assets.FrameHeight * state.Scale + 44;
             var layout = new DockPanel { Background = Brushes.Transparent, LastChildFill = true };
             bubbleText = new TextBlock { Text = "Bora conversar?", Foreground = Theme.Background, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis, HorizontalAlignment = HorizontalAlignment.Center };
             bubble = new Border { Child = bubbleText, Background = Theme.Pink, CornerRadius = new CornerRadius(12), Padding = new Thickness(10, 6, 10, 6), Margin = new Thickness(2, 2, 2, 6), Height = 32, VerticalAlignment = VerticalAlignment.Top, Cursor = Cursors.Hand };
@@ -58,6 +58,15 @@ namespace Negotchi
             if (!assets.Animations.ContainsKey(name)) name = "idle";
             animation = name; animationClock.Restart();
             image.Source = assets.Frames[assets.Animations[name].Frames[0]];
+        }
+
+        public string ActivePetId { get { return assets.Id; } }
+        public void SetPet(PetAssets replacement)
+        {
+            assets = replacement; Title = "Negotchi - " + assets.DisplayName; Icon = assets.Frames[0];
+            ContextMenu = BuildMenu(); ResizePet(state.Scale); nextIdle = DateTime.UtcNow.AddSeconds(20);
+            Play("waving");
+            Mood("Oi, sou " + assets.DisplayName + ".", "waving", false);
         }
 
         public void Mood(string text, string name, bool working)
@@ -153,14 +162,15 @@ namespace Negotchi
         {
             state.Scale = Math.Max(0.65, Math.Min(1.8, scale));
             double bottom = Top + Height;
-            Width = 192 * state.Scale; Height = 208 * state.Scale + 44; Top = bottom - Height;
+            Width = assets.FrameWidth * state.Scale; Height = assets.FrameHeight * state.Scale + 44; Top = bottom - Height;
             if (IsLoaded) { ClampPosition(); PersistPosition(); }
         }
 
         private ContextMenu BuildMenu()
         {
             var menu = new ContextMenu();
-            AddMenu(menu, "Conversar com PimpDogg", talk);
+            AddMenu(menu, "Conversar com " + assets.DisplayName, talk);
+            AddMenu(menu, "Trocar pet...", delegate { if (ChoosePet != null) ChoosePet(); });
             AddMenu(menu, "Abrir arquivo...", delegate { if (OpenFile != null) OpenFile(); });
             AddMenu(menu, "Escolher pasta de trabalho...", delegate { if (ChooseFolder != null) ChooseFolder(); });
             menu.Items.Add(new Separator());

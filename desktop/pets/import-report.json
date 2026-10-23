@@ -1,0 +1,62 @@
+{
+  "source": "$CODEX_HOME/cache/tui-pets/v1/assets",
+  "layout": "8 columns x 9 rows; 192 x 208 per frame",
+  "pets": [
+    {
+      "id": "codex",
+      "displayName": "Codex",
+      "sourceFile": "codex-spritesheet-v4.webp",
+      "sourceSha256": "5cd7af9cfeae88fe9c6e47a72460e0dc4c6fb04baf7fdc6cca14a212f0bf44d1",
+      "pngSha256": "527755fa61a0c263dc9b1dd6b079658add6c28dc9e959a19a7f810f9c9e78350"
+    },
+    {
+      "id": "dewey",
+      "displayName": "Dewey",
+      "sourceFile": "dewey-spritesheet-v4.webp",
+      "sourceSha256": "a53372a73467c5583fe512ed18443d1a8107cfb43060e4398ba1b7c679358ed0",
+      "pngSha256": "ef7e34392ec9e0c7f7b8380db09f875e4ee8b7489cf1a575385a56bc696bd5bb"
+    },
+    {
+      "id": "fireball",
+      "displayName": "Fireball",
+      "sourceFile": "fireball-spritesheet-v4.webp",
+      "sourceSha256": "2c257615a71374da82c802c78856e8a80ce336cfbeb1077b26051a5f6a7e49df",
+      "pngSha256": "5624c8234d2f5716dbe84d84076f235c1efe5d3cf64f27f68aa407c7a20a9861"
+    },
+    {
+      "id": "rocky",
+      "displayName": "Rocky",
+      "sourceFile": "rocky-spritesheet-v4.webp",
+      "sourceSha256": "524f3e6ac6508c60cf9d898940ea5f271ca66ca6b9bca66a73ac2b32296290fb",
+      "pngSha256": "2321bf97d1db418dfcf8811b78d384c80e819ceddbe0ce11d08abacc61d5dfba"
+    },
+    {
+      "id": "seedy",
+      "displayName": "Seedy",
+      "sourceFile": "seedy-spritesheet-v4.webp",
+      "sourceSha256": "4989cc19272ed944261bb4e29bfff842bbbb50aa9da1df9215cfbf47cb83f3ed",
+      "pngSha256": "bcafc8c328e13426099737d76d9742e5e657987474254ac6e66001208fdbdb3e"
+    },
+    {
+      "id": "stacky",
+      "displayName": "Stacky",
+      "sourceFile": "stacky-spritesheet-v4.webp",
+      "sourceSha256": "f532c6701fb5f21d94be898e349f44fb218f1521d3747da1281f7b80fd3c35d1",
+      "pngSha256": "89a9bb73f8bbd08dc30e29a6ac99aaec8bbe577e976aafe8702389d438dafdd6"
+    },
+    {
+      "id": "bsod",
+      "displayName": "BSOD",
+      "sourceFile": "bsod-spritesheet-v4.webp",
+      "sourceSha256": "0daf44c643c289772c01df97c5aa1383a4e2b05f4e50cf5e899c005a3876fbad",
+      "pngSha256": "f19fead08db8517072ceecf42f980ab5bee34625aa4bf13703542948b70eba75"
+    },
+    {
+      "id": "null-signal",
+      "displayName": "Null Signal",
+      "sourceFile": "null-signal-spritesheet-v4.webp",
+      "sourceSha256": "6fe899a334f906ce863bf986e5fcf629615bc7513697bba5b075f69564bf5508",
+      "pngSha256": "2de61b055b0fc0a937eb989decaeae6131a879a6f8ebf0615a2ad7f93f4f2069"
+    }
+  ]
+}
