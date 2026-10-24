@@ -103,11 +103,11 @@ namespace Negotchi
             foreach (bool selected in new[] { false, true })
             {
                 var button = Theme.Button(selected ? "Selecionado / Enviar" : "Botao comum", delegate { }, selected);
-                button.Background = Theme.Brush(draft.Colors[selected ? "SelectedButton" : "Button"]); button.Foreground = Theme.Brush(draft.Colors[selected ? "SelectedButtonText" : "ButtonText"]); button.BorderBrush = Theme.Brush(draft.Colors["Border"]); button.FontFamily = new FontFamily(draft.FontFamily); button.FontSize = draft.FontSize * 12 / 13; button.Margin = new Thickness(0, 0, 0, 8); content.Children.Add(button);
+                button.Background = Theme.Brush(draft.Colors[selected ? "SelectedButton" : "Button"]); button.Foreground = Theme.Brush(draft.Colors[selected ? "SelectedButtonText" : "ButtonText"]); button.BorderBrush = Theme.Brush(draft.Colors["Border"]); button.FontFamily = Theme.FontWithFallback(draft.FontFamily); button.FontSize = draft.FontSize * 12 / 13; button.Margin = new Thickness(0, 0, 0, 8); content.Children.Add(button);
             }
             preview.Child = content;
         }
-        private TextBlock SampleText(string text, string key) { return new TextBlock { Text = text, Foreground = Theme.Brush(draft.Colors[key]), FontFamily = new FontFamily(draft.FontFamily), FontSize = draft.FontSize, TextWrapping = TextWrapping.Wrap }; }
+        private TextBlock SampleText(string text, string key) { return new TextBlock { Text = text, Foreground = Theme.Brush(draft.Colors[key]), FontFamily = Theme.FontWithFallback(draft.FontFamily), FontSize = draft.FontSize, TextWrapping = TextWrapping.Wrap }; }
         private Border SampleBubble(string text, string background, string foreground) { return new Border { Background = Theme.Brush(draft.Colors[background]), CornerRadius = new CornerRadius(8), Padding = new Thickness(9), Margin = new Thickness(0, 0, 0, 10), Child = SampleText(text, foreground) }; }
     }
 }

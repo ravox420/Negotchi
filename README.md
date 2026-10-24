@@ -39,6 +39,8 @@ O aplicativo procura o `codex.exe` no PATH e na instalação npm padrão do usu�
 | Abrir documento manualmente | **Abrir arquivo**, mesmo sem login |
 | Referenciar um arquivo na pergunta | **Anexar caminho**; adiciona uma referência local, sem fazer upload automático |
 | Trocar contexto | **Pasta de trabalho**; inicia uma nova conversa nessa pasta |
+| Histórico de conversas | **Conversas**; cria, abre ou renomeia conversas salvas |
+| Revisar Git | **Git**; mostra branch, grafo de nós do histórico, arquivos alterados, diff e ações locais |
 | Recuperar o pet fora da tela | Ícone perto do relógio → **Trazer pet para a tela** |
 | Encerrar | Menu do personagem ou ícone perto do relógio → **Sair** |
 
@@ -72,6 +74,8 @@ Arrastar assume a corrida na direção do movimento e, ao soltar, restaura o est
 
 Abra **Aparência** no cabeçalho do chat. Escolha um tema base **Escuro** ou **Claro**, a fonte instalada e o tamanho base, de 10 a 22. A hierarquia entre títulos, mensagens e legendas é preservada.
 
+Toda fonte escolhida recebe fallback para Segoe UI, Segoe UI Emoji e Segoe UI Symbol quando faltarem glifos. Os emojis aparecem em traço monocromático no renderizador WPF atual. A compilação das fontes C# e a leitura do histórico Git usam UTF-8 explicitamente para preservar acentos e emojis.
+
 Cada cor abre uma roda seletora de matiz e saturação, com controle de luminosidade, prévia e entrada hexadecimal. Há 16 opções independentes: fundo, painéis e campos, texto principal e secundário, bordas, destaques, fundo e texto dos botões comuns e selecionados, balões e textos das suas mensagens e das respostas, além do balão sobre o pet e seu texto.
 
 **Aplicar** atualiza as janelas existentes e salva as escolhas. **Cancelar** descarta as alterações da prévia; **Restaurar padrão** recupera o visual original na prévia, que pode ser aplicado ou cancelado. Trocar a aparência preserva a conversa, a pasta, o pet e o rascunho da mensagem. Os seletores nativos de arquivos e pastas continuam usando o visual do Windows.
@@ -82,7 +86,13 @@ O visual é WPF nativo, construído em C#. `Theme.cs` reúne a paleta, os estilo
 
 **Anexar caminho** escolhe um ou mais arquivos e insere `Arquivo: "caminho"` no rascunho. Não muda a pasta de trabalho, não inicia outra conversa e não envia o arquivo automaticamente. O agente recebe a referência quando a mensagem é enviada e precisa ler o arquivo para usar seu conteúdo.
 
-**Pasta de trabalho** escolhe o diretório em que o agente executa suas operações e resolve caminhos relativos. Ao trocar essa pasta, o aplicativo inicia uma nova conversa e limpa as mensagens exibidas na conversa atual.
+**Pasta de trabalho** escolhe o diretório em que o agente executa suas operações e resolve caminhos relativos. Ao trocar essa pasta, o aplicativo cria uma nova conversa nesse diretório e preserva a anterior no histórico.
+
+### Histórico de conversas
+
+**Nova conversa** cria uma conversa independente no projeto selecionado. **Projetos locais**, no seletor **Conversas**, abre a gestão das conversas salvas pelo Negotchi: criar, selecionar e renomear projetos; alternar, renomear, buscar pelo título ou conteúdo salvo e arquivar/restaurar conversas sem apagar mensagens. Cada conversa mantém seu próprio projeto, histórico, pasta, thread, modelo, esforço, memória e uso reportado; a seleção ativa é restaurada ao reabrir o aplicativo. Essa organização é local e não inclui execução paralela.
+
+O botão **Conversas** agora abre um seletor inspirado no CLI `codex resume --all`: fonte monoespaçada, seleção em destaque, busca, navegação por ↑/↓ e Enter para retomar. Ele consulta todas as páginas de sessões interativas do Codex instalado, de todas as pastas e provedores, e mostra data, pasta e título. Os filtros permitem escolher pasta atual/todas, ativas/arquivadas e ordenar por atualização/criação. **Restaurar e retomar** restaura uma sessão arquivada no histórico do Codex. **Projetos locais** mantém os controles locais descritos acima. O texto completo da sessão selecionada é lido antes da troca; se a pasta estiver indisponível ou houver erro na leitura, a conversa atual é preservada.
 
 ## Comandos do Codex na interface
 
@@ -95,7 +105,8 @@ Clique em **Comandos /** ao lado do campo de mensagem ou comece a digitar `/`. A
 | `/usage` ou `/status` | Mostra modelo, conversa, tokens reportados, limites e atividade da conta. |
 | `/skills [busca]` | Lista skills da pasta atual e permite anexar uma ao próximo pedido. |
 | `/memories` | Abre as opções globais de memória do Codex e a permissão desta conversa para contribuir com memórias. |
-| `/mcp` | Consulta os servidores MCP e as ferramentas informadas pelo Codex. |
+| `/mcp` | Gerencia servidores MCP globais, autenticação e ferramentas reportadas. |
+| `/account` | Abre perfil, limites e atividade disponível; também acessível clicando no resumo da conta. |
 | `/new` | Inicia uma nova conversa na pasta atual. |
 | `/login` | Abre o fluxo de conexão da conta. |
 | `/pets` | Abre a aba de seleção de personagens. |
@@ -104,6 +115,16 @@ Clique em **Comandos /** ao lado do campo de mensagem ou comece a digitar `/`. A
 | `/help` | Lista os comandos disponíveis nesta versão. |
 
 Os controles usam as operações correspondentes do [Codex App Server](https://learn.chatgpt.com/docs/app-server). `/usage` é o atalho desta interface para as consultas de uso e limites; `/pets` controla o próprio Negotchi. Um comando indisponível recebe uma mensagem local com orientação para `/help`.
+
+`/permissions` define o sandbox da conversa: **Somente leitura**, **Permitir alterações com confirmação** ou **Acesso completo**. O último remove as restrições do sandbox e exige uma confirmação adicional; use-o somente para tarefas confiáveis.
+
+A permissão é persistida por conversa. Conversas novas ou importadas começam em leitura; trocar de conversa restaura a política dela. Estados antigos migram a política global somente para a conversa que estava ativa.
+
+No seletor **Conversas**, **Renomear** e **Arquivar / restaurar** aplicam as operações nativas ao histórico do Codex quando a sessão já existe nele. **Prévia** ou Ctrl+T lê as mensagens sem retomar nem alterar a sessão.
+
+O painel **Git** inclui **Push**: mostra remoto e branch para revisão e publica a branch selecionada sem force push. Sem remoto configurado, informa a ausência. Os testes usam um remoto local temporário.
+
+O gerenciador **MCP** permite adicionar, editar, ativar, desativar e remover servidores do arquivo global do usuário, mediante revisão. Preserva campos e credenciais não editados, verifica a versão da configuração e recarrega o serviço. Origens herdadas/gerenciadas são consultáveis; não são sobrescritas. A autenticação OAuth abre a autorização HTTPS no navegador. Valores existentes de credenciais e argumentos não são mostrados.
 
 Modelo e esforço escolhidos ficam salvos no Negotchi e são aplicados aos próximos pedidos, inclusive após reabrir a conversa. O seletor usa os modelos e esforços que o Codex retorna, respeitando a configuração do provedor.
 
@@ -155,6 +176,8 @@ O build usa o compilador do .NET Framework que acompanha o Windows, sem restaura
 | `desktop/src/CodexCommands.cs` | Consultas, configurações e dados dos comandos nativos |
 | `desktop/src/CommandMenu.cs` | Seletor de comandos e sugestões no campo de mensagem |
 | `desktop/src/CommandDialogs.cs` | Janelas de modelo, skills, uso e memórias |
+| `desktop/src/ConversationHistory.cs` | Leitura paginada de sessões e mensagens no App Server |
+| `desktop/src/ConversationPicker.cs` | Seletor de conversas inspirado no CLI resume --all |
 | `desktop/src/PetWindow.cs` | Janela transparente, animações, arraste e menu |
 | `desktop/src/PetActivity.cs` | Estados visuais a partir dos eventos públicos do agente |
 | `desktop/src/PetPackages.cs` | Validação e importação de pacotes locais |

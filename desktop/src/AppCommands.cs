@@ -38,6 +38,8 @@ namespace Negotchi
             if (name == "/import-pet") { ImportPet(); return; }
             if (name == "/create-pet") { CreatePet(invocation.Arguments); return; }
             if (name == "/login") { Connect(); return; }
+            if (name == "/files") { OpenChat(); new FileExplorerWindow(chat, state.Folder, path => chat.PrefixInput("Arquivo: \"" + path + "\"\n"), state.Sandbox, context => chat.PrefixInput(context)).ShowDialog(); return; }
+            if (name == "/diff") { OpenChat(); try { var conversation = state.ActiveConversation(); if (conversation.ReviewComments == null) conversation.ReviewComments = new List<ReviewComment>(); new DiffReviewWindow(chat, state.Folder, conversation.ReviewComments, context => chat.PrefixInput(context)).ShowDialog(); Save(); } catch (Exception error) { Status("Não foi possível revisar: " + error.Message, "failed"); } return; }
             commandBusy = true; chat.SetCommandBusy(true);
             string feedback = "Comando concluido.", animation = "idle";
             try
@@ -51,7 +53,8 @@ namespace Negotchi
                 Status("Consultando o Codex...", "waiting");
                 await agent.StartAsync(state.Folder);
                 var commands = new CodexCommands(agent);
-                if (name == "/model")
+                if (name == "/terminal") { new TerminalWindow(chat, agent, state.Folder, state.Sandbox).ShowDialog(); feedback = "Terminais encerrados."; }
+                else if (name == "/model")
                 {
                     var modelsTask = commands.Models(); var configTask = commands.ReadConfig(state.Folder); await Task.WhenAll(modelsTask, configTask);
                     var models = modelsTask.Result; var config = configTask.Result;
@@ -83,6 +86,10 @@ namespace Negotchi
                     if (selected == null) { feedback = "Selecao de skill mantida."; return; }
                     ClearPendingSkill(); pendingSkill = selected; chat.SetSkill(selected.DisplayName); chat.PrefixInput("$" + selected.Name + " ");
                     feedback = "Skill preparada para o proximo pedido: " + selected.DisplayName;
+                }
+                else if (name == "/account")
+                {
+                    new AccountWindow(chat, agent).ShowDialog(); feedback = "Perfil consultado.";
                 }
                 else if (name == "/usage")
                 {
@@ -116,21 +123,17 @@ namespace Negotchi
                     }
                     feedback = "Configuracoes de memoria aplicadas no Codex.";
                 }
+                else if (name == "/permissions")
+                {
+                    var sandbox = CommandDialogs.Permissions(chat, state.Sandbox);
+                    if (sandbox == null) { feedback = "Permissões mantidas."; return; }
+                    if (sandbox != state.Sandbox && sandbox != "danger-full-access" && !DesktopActions.Review(chat, "Alterar permissões da conversa", "Aplicar " + sandbox + " somente aos próximos pedidos desta conversa?\n\nAs outras conversas mantêm suas próprias permissões.")) { feedback = "Permissões mantidas."; return; }
+                    state.Sandbox = sandbox; threadResumed = false;
+                    feedback = sandbox == "danger-full-access" ? "Acesso completo ativado para esta conversa." : sandbox == "workspace-write" ? "Alterações de arquivos permitidas mediante confirmação." : "Conversa restrita à leitura.";
+                }
                 else if (name == "/mcp")
                 {
-                    var details = new StringBuilder(); string cursor = null; var visited = new HashSet<string>();
-                    do
-                    {
-                        var result = await agent.RequestAsync("mcpServerStatus/list", Json.Map("cursor", cursor, "limit", 100));
-                        foreach (var server in Json.Items(result, "data").OfType<Dictionary<string, object>>())
-                        {
-                            details.AppendLine(Json.Text(server, "name") + " | " + Json.Text(server, "authStatus"));
-                            var tools = Json.Object(server, "tools"); details.AppendLine("Ferramentas: " + (tools.Count == 0 ? "Nenhuma informada" : string.Join(", ", tools.Keys))); details.AppendLine();
-                        }
-                        cursor = Json.Text(result, "nextCursor"); if (cursor.Length > 0 && !visited.Add(cursor)) throw new InvalidOperationException("O Codex repetiu uma pagina de servidores MCP.");
-                    } while (cursor.Length > 0);
-                    CommandDialogs.Info(chat, "Conexoes MCP", details.Length == 0 ? "Nenhum servidor MCP informado pelo Codex." : details.ToString());
-                    feedback = "Conexoes consultadas.";
+                    new McpManagement(chat, agent).ShowDialog(); feedback = "Servidores MCP consultados.";
                 }
             }
             catch (Exception error) { feedback = error.Message; animation = "failed"; AddSystem(error.Message); }

@@ -9,11 +9,17 @@ if (-not (Test-Path -LiteralPath (Join-Path $frameworkDirectory 'csc.exe'))) {
 $compiler = Join-Path $frameworkDirectory 'csc.exe'
 if (-not (Test-Path -LiteralPath $compiler)) { throw 'Instale o .NET Framework 4.8 para compilar o Negotchi.' }
 New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
-$references = @('System.dll', 'System.Core.dll', 'System.Xaml.dll', 'System.Web.Extensions.dll', 'System.Drawing.dll', 'System.Windows.Forms.dll')
-$arguments = @('/nologo', '/target:winexe', '/platform:anycpu', '/optimize+', '/utf8output', '/warn:4', ('/out:' + (Join-Path $outputDirectory 'Negotchi.exe')))
+$references = @('System.dll', 'System.Core.dll', 'System.Xaml.dll', 'System.Web.Extensions.dll', 'System.Drawing.dll', 'System.Windows.Forms.dll', 'System.Xml.dll', 'System.Xml.Linq.dll', 'System.IO.Compression.dll', 'System.IO.Compression.FileSystem.dll')
+$arguments = @('/nologo', '/target:winexe', '/platform:anycpu', '/optimize+', '/codepage:65001', '/utf8output', '/warn:4', ('/out:' + (Join-Path $outputDirectory 'Negotchi.exe')))
 foreach ($reference in $references) { $arguments += '/reference:' + (Join-Path $frameworkDirectory $reference) }
 foreach ($reference in @('PresentationCore.dll', 'PresentationFramework.dll', 'WindowsBase.dll')) {
     $arguments += '/reference:' + (Join-Path $frameworkDirectory ('WPF\' + $reference))
+}
+$runtimeFacade = Get-ChildItem -LiteralPath (Join-Path $env:WINDIR 'Microsoft.NET\assembly\GAC_MSIL\System.Runtime') -Filter 'System.Runtime.dll' -Recurse | Select-Object -First 1
+if (-not $runtimeFacade) { throw 'System.Runtime do .NET Framework nao encontrado.' }
+$arguments += '/reference:' + $runtimeFacade.FullName
+foreach ($metadata in @('Windows.Foundation.winmd', 'Windows.Storage.winmd', 'Windows.Data.winmd', 'Windows.Graphics.winmd')) {
+    $arguments += '/reference:' + (Join-Path $env:WINDIR ('System32\WinMetadata\' + $metadata))
 }
 foreach ($petDirectory in @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'pets') -Directory | Sort-Object Name)) {
     foreach ($petFile in @('pet.json', 'spritesheet.png', 'preview.png')) {
@@ -29,7 +35,7 @@ $skillDestination = Join-Path $outputDirectory 'skills'
 New-Item -ItemType Directory -Force -Path $skillDestination | Out-Null
 Copy-Item -LiteralPath $skillSource -Destination $skillDestination -Recurse -Force
 if ($Test) {
-    $testArguments = @('/nologo', '/target:exe', '/platform:anycpu', '/utf8output', ('/out:' + (Join-Path $outputDirectory 'Negotchi.Tests.exe')), '/main:Negotchi.Tests')
+    $testArguments = @('/nologo', '/target:exe', '/platform:anycpu', '/codepage:65001', '/utf8output', ('/out:' + (Join-Path $outputDirectory 'Negotchi.Tests.exe')), '/main:Negotchi.Tests')
     $testArguments += @($arguments | Where-Object { $_ -like '/reference:*' -or $_ -like '/resource:*' })
     $testArguments += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src') -Filter '*.cs' | ForEach-Object { $_.FullName })
     $testArguments += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tests') -Filter '*.cs' | ForEach-Object { $_.FullName })

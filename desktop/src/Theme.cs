@@ -19,7 +19,7 @@ namespace Negotchi
         public string FontFamily { get; set; }
         public double FontSize { get; set; }
         public Dictionary<string, string> Colors { get; set; }
-        public AppearanceSettings() { Mode = "dark"; FontFamily = "Segoe UI"; FontSize = 13; Colors = new Dictionary<string, string>(); }
+        public AppearanceSettings() { Mode = "dark"; FontFamily = Theme.DefaultFontFamily; FontSize = 13; Colors = new Dictionary<string, string>(); }
     }
 
     internal sealed class ThemeColor : INotifyPropertyChanged
@@ -44,6 +44,7 @@ namespace Negotchi
 
     internal static class Theme
     {
+        public const string DefaultFontFamily = "Segoe UI, Segoe UI Emoji, Segoe UI Symbol";
         public static readonly ThemeColor[] Colors = {
             new ThemeColor("Background", "Fundo da janela", "#17131C", "#F6F3F8"),
             new ThemeColor("Surface", "Paineis e campos", "#241D2B", "#FFFFFF"),
@@ -85,6 +86,12 @@ namespace Negotchi
         public static Brush SpeechBubbleText { get { return palette["SpeechBubbleText"].Brush; } }
 
         public static bool IsColor(string value) { return value != null && Regex.IsMatch(value, "^#[0-9a-fA-F]{6}$"); }
+        public static FontFamily FontWithFallback(string family)
+        {
+            var names = (family ?? "Segoe UI").Split(',').Select(name => name.Trim()).Where(name => name.Length > 0)
+                .Concat(new[] { "Segoe UI", "Segoe UI Emoji", "Segoe UI Symbol" }).Distinct(StringComparer.OrdinalIgnoreCase);
+            return new FontFamily(string.Join(", ", names));
+        }
         public static SolidColorBrush Brush(string value) { return new SolidColorBrush((Color)ColorConverter.ConvertFromString(value)); }
         public static AppearanceSettings Preset(string mode)
         {
@@ -96,7 +103,11 @@ namespace Negotchi
         {
             if (value == null) return Preset("dark");
             var result = Preset(value.Mode);
-            if (!string.IsNullOrWhiteSpace(value.FontFamily) && value.FontFamily.Length <= 100) result.FontFamily = value.FontFamily.Trim();
+            if (!string.IsNullOrWhiteSpace(value.FontFamily) && value.FontFamily.Length <= 100)
+            {
+                string family = value.FontFamily.Trim();
+                result.FontFamily = string.Equals(family, "Segoe UI", StringComparison.OrdinalIgnoreCase) ? DefaultFontFamily : family;
+            }
             result.FontSize = double.IsNaN(value.FontSize) || double.IsInfinity(value.FontSize) || value.FontSize <= 0 ? 13 : Math.Max(10, Math.Min(22, value.FontSize));
             foreach (var color in Colors)
             {
@@ -112,7 +123,7 @@ namespace Negotchi
             if (Application.Current == null) return;
             var resources = Application.Current.Resources;
             foreach (var color in Colors) resources["Negotchi.Color." + color.Key] = color.Brush;
-            resources[FontFamilyKey] = new FontFamily(current.FontFamily);
+            resources[FontFamilyKey] = FontWithFallback(current.FontFamily);
             resources[ChatMinHeightKey] = 560 + Math.Max(0, current.FontSize - 13) * 16;
             foreach (var entry in fontKeys) resources[entry.Value] = entry.Key * current.FontSize / 13;
             resources[SystemColors.HighlightBrushKey] = SelectedButton;

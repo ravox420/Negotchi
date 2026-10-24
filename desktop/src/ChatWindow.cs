@@ -7,13 +7,13 @@ using System.Windows.Media;
 
 namespace Negotchi
 {
-    internal sealed class ChatWindow : Window
+    internal sealed partial class ChatWindow : Window
     {
         private readonly StackPanel messages;
         private readonly ScrollViewer scroll;
         private readonly TextBox input;
         private readonly TextBlock status, folder;
-        private readonly Button send, stop, connect, chooseFolder, newChat, attach;
+        private readonly Button send, stop, connect, chooseFolder, newChat, conversations, git, attach;
         private readonly CommandMenu commandMenu;
         private readonly Border skillBanner;
         private readonly TextBlock skillText;
@@ -28,7 +28,7 @@ namespace Negotchi
         private string petName;
         private bool quitting;
         public event Action<string> Send;
-        public Action Stop, Connect, OpenFile, ChooseFolder, NewChat, Appearance;
+        public Action Stop, Connect, OpenFile, ChooseFolder, NewChat, Conversations, Git, Appearance;
         public event Action<string> PetSelected;
         public event Action<string> CommandRequested;
         public Action ClearSkill;
@@ -63,6 +63,8 @@ namespace Negotchi
             accountLimits = new TextBlock { FontSize = 11, Foreground = Theme.Accent, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 3, 0, 0) };
             accountDetails.Children.Add(accountEmail); accountDetails.Children.Add(accountLimits);
             accountInfo = new Border { Child = accountDetails, Background = Theme.Card, CornerRadius = new CornerRadius(8), Padding = new Thickness(10, 7, 10, 7), Margin = new Thickness(0, 0, 0, 12) };
+            accountInfo.Cursor = Cursors.Hand; accountInfo.ToolTip = "Abrir perfil, limites e atividade";
+            accountInfo.MouseLeftButtonUp += delegate { if (CommandRequested != null && !turnBusy && !commandBusy) CommandRequested("/account"); };
             DockPanel.SetDock(accountInfo, Dock.Top); root.Children.Add(accountInfo);
             var conversation = new DockPanel { LastChildFill = true };
             tabs = new TabControl { Background = Theme.Background, BorderThickness = new Thickness(0), Padding = new Thickness(0), Foreground = Theme.Text };
@@ -85,6 +87,8 @@ namespace Negotchi
             var toolbar = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
             var open = Theme.Button("Abrir arquivo", delegate { if (OpenFile != null) OpenFile(); }, false); toolbar.Children.Add(open);
             chooseFolder = Theme.Button("Pasta de trabalho", delegate { if (ChooseFolder != null) ChooseFolder(); }, false); toolbar.Children.Add(chooseFolder);
+            conversations = Theme.Button("Conversas", delegate { if (Conversations != null) Conversations(); }, false); toolbar.Children.Add(conversations);
+            git = Theme.Button("Git", delegate { if (Git != null) Git(); }, false); toolbar.Children.Add(git);
             newChat = Theme.Button("Nova conversa", delegate { if (NewChat != null) NewChat(); }, false); newChat.Margin = new Thickness(0); toolbar.Children.Add(newChat);
             DockPanel.SetDock(toolbar, Dock.Top); conversation.Children.Add(toolbar);
             folder = new TextBlock { FontSize = 11, Foreground = Theme.Muted, TextTrimming = TextTrimming.CharacterEllipsis, Margin = new Thickness(0, 0, 0, 13) };
@@ -102,9 +106,13 @@ namespace Negotchi
             var removeSkill = Theme.Button("x", delegate { if (ClearSkill != null) ClearSkill(); }, false); removeSkill.Padding = new Thickness(8, 2, 8, 2); removeSkill.MinHeight = 20; removeSkill.ToolTip = "Remover skill deste pedido"; DockPanel.SetDock(removeSkill, Dock.Right); skillRow.Children.Add(removeSkill);
             skillText = new TextBlock { Foreground = Theme.Accent, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis }; skillRow.Children.Add(skillText);
             skillBanner = new Border { Child = skillRow, Background = Theme.Card, Padding = new Thickness(8, 5, 4, 5), Margin = new Thickness(0, 0, 0, 8), CornerRadius = new CornerRadius(6), Visibility = Visibility.Collapsed }; bottom.Children.Add(skillBanner);
+            InitializeAttachments(bottom);
             bottom.Children.Add(input);
             var composerButtons = new DockPanel { Margin = new Thickness(0, 9, 0, 0) };
-            attach = Theme.Button("Anexar caminho", delegate { AttachPath(); }, false); DockPanel.SetDock(attach, Dock.Left); composerButtons.Children.Add(attach);
+            attach = Theme.Button("Anexar", delegate { ChooseAttachments(); }, false); DockPanel.SetDock(attach, Dock.Left); composerButtons.Children.Add(attach);
+            attach.ContextMenu = new ContextMenu();
+            var referencePath = new MenuItem { Header = "Anexar caminho (somente referência)" }; referencePath.Click += delegate { AttachPath(); }; attach.ContextMenu.Items.Add(referencePath);
+            var pasteImage = new MenuItem { Header = "Colar imagem" }; pasteImage.Click += delegate { PasteImage(); }; attach.ContextMenu.Items.Add(pasteImage);
             var rightButtons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
             stop = Theme.Button("Parar", delegate { if (Stop != null) Stop(); }, false); stop.IsEnabled = false;
             send = Theme.Button("Enviar", delegate { Submit(); }, true); send.Margin = new Thickness(0);
@@ -156,10 +164,11 @@ namespace Negotchi
         {
             bool active = turnBusy || commandBusy;
             send.IsEnabled = !active; stop.IsEnabled = turnBusy; connect.IsEnabled = !active && !connecting;
-            chooseFolder.IsEnabled = !active; newChat.IsEnabled = !active;
+            chooseFolder.IsEnabled = !active; newChat.IsEnabled = !active; conversations.IsEnabled = !active; git.IsEnabled = !active;
             picker.IsEnabled = !active; picker.ToolTip = active ? "Termine ou pare o pedido antes de trocar de pet." : null;
             skillBanner.IsEnabled = !active;
             commandMenu.SetEnabled(!active);
+            attach.IsEnabled = !active; if (attachmentRows != null) attachmentRows.IsEnabled = !active;
         }
         public void SetSkill(string name) { skillBanner.Visibility = string.IsNullOrEmpty(name) ? Visibility.Collapsed : Visibility.Visible; skillText.Text = "Skill: " + name; }
         public void PrefixInput(string prefix) { if (!input.Text.StartsWith(prefix, StringComparison.Ordinal)) input.Text = prefix + input.Text; input.Focus(); input.CaretIndex = input.Text.Length; }
@@ -171,7 +180,8 @@ namespace Negotchi
         private void Submit()
         {
             string text = input.Text.Trim();
-            if (text.Length == 0 || !send.IsEnabled) return;
+            if ((text.Length == 0 && attachments.Count == 0) || !send.IsEnabled) return;
+            if (text.Length == 0) text = "Analise os anexos.";
             SlashInvocation invocation;
             if (SlashCommands.TryParse(text, out invocation)) { if (CommandRequested != null) { input.Clear(); CommandRequested(text); } return; }
             if (Send != null) { input.Clear(); Send(text); }

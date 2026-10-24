@@ -41,6 +41,40 @@ namespace Negotchi
         public string PetName { get; set; }
     }
 
+    public sealed class ConversationState
+    {
+        public string Id { get; set; }
+        public string ProjectId { get; set; }
+        public string Title { get; set; }
+        public string Folder { get; set; }
+        public string ThreadId { get; set; }
+        public List<ChatMessage> Messages { get; set; }
+        public string SelectedModel { get; set; }
+        public string ReasoningEffort { get; set; }
+        public string ThreadMemoryMode { get; set; }
+        public Dictionary<string, object> TokenUsage { get; set; }
+        public bool Archived { get; set; }
+        public string Sandbox { get; set; }
+        public string Draft { get; set; }
+        public List<PendingAttachment> Attachments { get; set; }
+        public List<ReviewComment> ReviewComments { get; set; }
+        public string DisplayName { get { return string.IsNullOrWhiteSpace(Title) ? "Conversa sem titulo" : Title; } }
+        public bool Matches(string search)
+        {
+            if (string.IsNullOrWhiteSpace(search)) return true;
+            search = search.Trim();
+            if (DisplayName.IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0) return true;
+            return (Messages ?? new List<ChatMessage>()).Any(message => message != null && (message.Text ?? "").IndexOf(search, StringComparison.OrdinalIgnoreCase) >= 0);
+        }
+    }
+
+    public sealed class ProjectState
+    {
+        public string Id { get; set; }
+        public string Name { get; set; }
+        public string DisplayName { get { return string.IsNullOrWhiteSpace(Name) ? "Projeto sem nome" : Name; } }
+    }
+
     public sealed class AppState
     {
         public double X { get; set; }
@@ -56,13 +90,61 @@ namespace Negotchi
         public string ThreadMemoryMode { get; set; }
         public Dictionary<string, object> TokenUsage { get; set; }
         public AppearanceSettings Appearance { get; set; }
+        public string Sandbox { get; set; }
+        public List<ConversationState> Conversations { get; set; }
+        public string ActiveConversationId { get; set; }
+        public List<ProjectState> Projects { get; set; }
+        public string ActiveProjectId { get; set; }
         public AppState()
         {
             X = -1; Y = -1; Scale = 1; Topmost = true; SelectedPetId = "PimpDogg";
             Folder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            Sandbox = "read-only";
             Messages = new List<ChatMessage>();
+            Conversations = new List<ConversationState>();
+            Projects = new List<ProjectState>();
             Appearance = new AppearanceSettings();
         }
+        public void EnsureProjects()
+        {
+            Projects = Projects ?? new List<ProjectState>();
+            if (Projects.Count == 0) Projects.Add(new ProjectState { Id = Guid.NewGuid().ToString("N"), Name = "Meus projetos" });
+            foreach (var project in Projects)
+            {
+                if (string.IsNullOrWhiteSpace(project.Id)) project.Id = Guid.NewGuid().ToString("N");
+                if (string.IsNullOrWhiteSpace(project.Name)) project.Name = "Projeto sem nome";
+            }
+            if (!Projects.Any(project => project.Id == ActiveProjectId)) ActiveProjectId = Projects[0].Id;
+        }
+        public void EnsureConversations()
+        {
+            EnsureProjects();
+            Conversations = Conversations ?? new List<ConversationState>();
+            if (Conversations.Count == 0) Conversations.Add(new ConversationState { Id = Guid.NewGuid().ToString("N"), Title = "Conversa nova", Folder = Folder, ThreadId = ThreadId, Messages = Copy(Messages), SelectedModel = SelectedModel, ReasoningEffort = ReasoningEffort, ThreadMemoryMode = ThreadMemoryMode, TokenUsage = TokenUsage, Sandbox = SafeSandbox(Sandbox) });
+            foreach (var conversation in Conversations)
+            {
+                if (string.IsNullOrWhiteSpace(conversation.Id)) conversation.Id = Guid.NewGuid().ToString("N");
+                if (!Projects.Any(project => project.Id == conversation.ProjectId)) conversation.ProjectId = ActiveProjectId;
+                if (string.IsNullOrWhiteSpace(conversation.Title)) conversation.Title = "Conversa nova";
+                // Only the previously active conversation inherits a legacy global policy.
+                if (conversation.Sandbox == null) conversation.Sandbox = conversation.Id == ActiveConversationId ? SafeSandbox(Sandbox) : "read-only";
+                else conversation.Sandbox = SafeSandbox(conversation.Sandbox);
+                if (!Directory.Exists(conversation.Folder)) conversation.Folder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                conversation.Messages = conversation.Messages == null ? new List<ChatMessage>() : conversation.Messages.Where(message => message != null && message.Text != null).ToList();
+            }
+            if (!Conversations.Any(conversation => conversation.Id == ActiveConversationId)) ActiveConversationId = Conversations[0].Id;
+        }
+        public ConversationState ActiveConversation() { EnsureConversations(); return Conversations.First(conversation => conversation.Id == ActiveConversationId); }
+        public void SaveActiveConversation()
+        {
+            var conversation = ActiveConversation(); conversation.Folder = Folder; conversation.ThreadId = ThreadId; conversation.Messages = Copy(Messages); conversation.SelectedModel = SelectedModel; conversation.ReasoningEffort = ReasoningEffort; conversation.ThreadMemoryMode = ThreadMemoryMode; conversation.TokenUsage = TokenUsage; conversation.Sandbox = SafeSandbox(Sandbox);
+        }
+        public void LoadActiveConversation()
+        {
+            var conversation = ActiveConversation(); ActiveProjectId = conversation.ProjectId; Sandbox = SafeSandbox(conversation.Sandbox); Folder = conversation.Folder; ThreadId = conversation.ThreadId; Messages = Copy(conversation.Messages); SelectedModel = conversation.SelectedModel; ReasoningEffort = conversation.ReasoningEffort; ThreadMemoryMode = conversation.ThreadMemoryMode; TokenUsage = conversation.TokenUsage;
+        }
+        internal static string SafeSandbox(string value) { return value == "workspace-write" || value == "danger-full-access" ? value : "read-only"; }
+        private static List<ChatMessage> Copy(IEnumerable<ChatMessage> messages) { return (messages ?? new ChatMessage[0]).Select(message => new ChatMessage { Role = message.Role, Text = message.Text, PetName = message.PetName }).ToList(); }
     }
 
     internal sealed class StateStore
@@ -77,7 +159,7 @@ namespace Negotchi
             if (!File.Exists(path)) return new AppState();
             try
             {
-                var state = new JavaScriptSerializer().Deserialize<AppState>(File.ReadAllText(path, Encoding.UTF8)) ?? new AppState();
+                var state = new JavaScriptSerializer { MaxJsonLength = 16777216 }.Deserialize<AppState>(File.ReadAllText(path, Encoding.UTF8)) ?? new AppState();
                 state.Messages = state.Messages ?? new List<ChatMessage>();
                 state.Messages = state.Messages.Where(m => m != null && m.Text != null).ToList();
                 foreach (var message in state.Messages) if (message.Role == "assistant" && string.IsNullOrEmpty(message.PetName)) message.PetName = "PimpDogg";
@@ -85,6 +167,8 @@ namespace Negotchi
                 state.Scale = Math.Max(0.65, Math.Min(1.8, state.Scale));
                 if (double.IsNaN(state.X) || double.IsInfinity(state.X) || double.IsNaN(state.Y) || double.IsInfinity(state.Y)) { state.X = -1; state.Y = -1; }
                 if (!Directory.Exists(state.Folder)) state.Folder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+                if (state.Sandbox != "workspace-write" && state.Sandbox != "danger-full-access") state.Sandbox = "read-only";
+                state.EnsureConversations(); state.LoadActiveConversation();
                 state.Appearance = Theme.Normalize(state.Appearance);
                 return state;
             }
@@ -94,6 +178,7 @@ namespace Negotchi
         }
         public void Save(AppState state)
         {
+            state.SaveActiveConversation();
             Directory.CreateDirectory(Path.GetDirectoryName(path));
             var temporary = path + ".tmp";
             File.WriteAllText(temporary, Json.Encode(state), new UTF8Encoding(false));

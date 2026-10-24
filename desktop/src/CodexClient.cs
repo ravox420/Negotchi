@@ -90,7 +90,7 @@ namespace Negotchi
 
         private static void Background(Func<Task> work) { Task.Run(work); }
 
-        public async Task<Dictionary<string, object>> RequestAsync(string method, object parameters)
+        public async Task<Dictionary<string, object>> RequestAsync(string method, object parameters, int timeoutMilliseconds = 45000)
         {
             if (disposed) throw new ObjectDisposedException("CodexClient");
             string key = Interlocked.Increment(ref nextId).ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -99,7 +99,7 @@ namespace Negotchi
             try
             {
                 Write(Json.Map("id", int.Parse(key), "method", method, "params", parameters));
-                if (await Task.WhenAny(completion.Task, Task.Delay(TimeSpan.FromSeconds(45))) != completion.Task) throw new TimeoutException("O Codex demorou para responder. Tente reconectar.");
+                if (await Task.WhenAny(completion.Task, Task.Delay(timeoutMilliseconds)) != completion.Task) throw new TimeoutException("O Codex demorou para responder. Tente reconectar.");
                 return await completion.Task;
             }
             finally { lock (pendingLock) pending.Remove(key); }

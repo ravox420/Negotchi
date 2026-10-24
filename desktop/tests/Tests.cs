@@ -21,13 +21,14 @@ namespace Negotchi
         public static int Main(string[] args)
         {
             if (args.Length > 0 && args[0] == "app-server") return FakeServer();
+            if (args.Length > 0 && args[0] == "--history-audit") return HistoryAudit().GetAwaiter().GetResult();
             if (args.Length > 0 && args[0] == "--ui-smoke") return UiSmoke(Path.GetFullPath(args[1]));
             if (args.Length > 0 && args[0] == "--pet-ui-smoke") return PetCreationUiSmoke(Path.GetFullPath(args[1]));
             output = Path.GetFullPath(args.Length > 0 ? args[0] : ".build");
             Directory.CreateDirectory(output);
             try
             {
-                TestAssets(); TestCatalog(); TestFiles(); TestState(); TestPosition(); TestSlashCommands(); TestPetCreation(); TestProtocol().GetAwaiter().GetResult(); TestCommandProtocol().GetAwaiter().GetResult(); TestNativeProtocol().GetAwaiter().GetResult(); TestViews();
+                TestAssets(); TestCatalog(); TestFiles(); TestState(); TestPosition(); TestSlashCommands(); TestNormalization(); TestGitGraph(); TestPetCreation(); TestWorkspace().GetAwaiter().GetResult(); TestProtocol().GetAwaiter().GetResult(); TestCommandProtocol().GetAwaiter().GetResult(); TestNativeProtocol().GetAwaiter().GetResult(); TestViews();
                 File.WriteAllText(Path.Combine(output, "test-results.json"), Json.Encode(Json.Map("passed", assertions, "failed", 0, "nativeProtocol", true, "liveModelTested", false)), Encoding.UTF8);
                 Console.WriteLine("PASS: " + assertions + " verificacoes. Previews: .build/chat-preview.png e .build/pet-preview.png");
                 return 0;
@@ -38,6 +39,18 @@ namespace Negotchi
         {
             if (!value) throw new Exception("FAIL: " + description);
             assertions++; Console.WriteLine("PASS: " + description);
+        }
+        private static async Task<int> HistoryAudit()
+        {
+            using (var client = new CodexClient())
+            {
+                await client.StartAsync(Environment.CurrentDirectory);
+                var history = new ConversationHistory(client);
+                var sessions = await history.List(false, CancellationToken.None);
+                int messages = sessions.Count == 0 ? 0 : (await history.Messages(sessions[0].Id, "Codex")).Count;
+                Console.WriteLine(Json.Encode(Json.Map("sessions", sessions.Count, "folders", sessions.Select(session => session.Folder).Distinct().Count(), "sampleMessages", messages)));
+                return 0;
+            }
         }
         private static void Throws(Action action, string description)
         {
@@ -76,6 +89,34 @@ namespace Negotchi
             DesktopActions.Open(script, folder, path => true, path => opened = path);
             Check(opened == script, "permite abrir programa somente apos revisao");
             Check(!DesktopActions.NeedsConfirmation(folder), "abre pastas diretamente");
+        }
+        private static void TestNormalization()
+        {
+            var command = AgentResponseNormalizer.Normalize("item/commandExecution/requestApproval", Json.Map("command", "dotnet test", "cwd", "C:\\repo", "reason", "Validar", "commandActions", new object[] { Json.Map("type", "read") }), Json.Map());
+            Check(command.Kind == ApprovalKind.CommandExecution && command.Command == "dotnet test" && command.WorkingDirectory == "C:\\repo" && command.Permissions.Contains("read"), "normaliza aprovacao de comando");
+            var files = AgentResponseNormalizer.Normalize("item/fileChange/requestApproval", Json.Map("reason", "Aplicar", "grantRoot", "C:\\repo"), Json.Map("changes", new object[] { Json.Map("path", "src\\App.cs", "kind", "update", "diff", "- antigo\n+ novo") }));
+            Check(files.Kind == ApprovalKind.FileChange && files.FileChanges.Count == 1 && files.FileChanges[0].Path == "src\\App.cs", "normaliza alteracoes de arquivos");
+            var permissions = AgentResponseNormalizer.Normalize("item/permissions/requestApproval", Json.Map("permissions", Json.Map("network", Json.Map("host", "example.com"), "filesystem", new object[] { "C:\\repo" })), null);
+            Check(permissions.Kind == ApprovalKind.Permissions && permissions.Permissions.Contains("network") && permissions.Permissions.Contains("filesystem"), "normaliza permissoes solicitadas");
+            var unknown = AgentResponseNormalizer.Normalize("future/request", Json.Map(), null);
+            Check(unknown.Kind == ApprovalKind.Unknown && unknown.RawParameters != null, "preserva solicitacao desconhecida para diagnostico");
+        }
+        private static void TestGitGraph()
+        {
+            string repository = Path.Combine(output, "git-unicode-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(repository);
+            GitWindow.Run(repository, "init");
+            GitWindow.Run(repository, "-c user.name=Teste -c user.email=teste@example.invalid commit --allow-empty -m \"Ação, revisão e café 😀 🚀\"");
+            string subject = GitWindow.Run(repository, "log -1 --format=%s").Trim();
+            Check(subject == "A\u00e7\u00e3o, revis\u00e3o e caf\u00e9 \U0001f600 \U0001f680", "preserva acentos e emojis na saida real do Git e na compilacao das fontes");
+            string remote = Path.Combine(output, "git-push-remote-" + Guid.NewGuid().ToString("N")); Directory.CreateDirectory(remote); GitWindow.Run(remote, "init --bare");
+            GitWindow.Run(repository, "remote add origin \"" + remote + "\""); string branch = GitWindow.Run(repository, "symbolic-ref --short HEAD").Trim();
+            GitWindow.Run(repository, GitWindow.PushArguments("origin", branch));
+            Check(GitWindow.Run(remote, "rev-parse refs/heads/" + branch).Trim() == GitWindow.Run(repository, "rev-parse HEAD").Trim(), "push publica somente a branch escolhida em remoto local de teste");
+            Check(!GitWindow.RedactRemote("https://user:secret@example.com/repo.git").Contains("secret"), "revisao do push nao mostra credenciais da URL");
+            var graph = GitGraph.Read("a1\u001fb1 c1\u001fHEAD -> main\u001fMerge branch\u001eb1\u001fd1\u001f\u001fPrimeiro\u001ec1\u001fd1\u001ffeature\u001fFeature\u001ed1\u001f\u001f\u001fBase\u001e");
+            Check(graph.Count == 4 && graph[0].Parents.Length == 2 && graph[2].Lane != graph[1].Lane, "organiza commits e ramificacoes em trilhas do grafo Git");
+            var view = GitGraph.Draw(graph); Render(view, 520, 160, Path.Combine(output, "git-graph-preview.png"));
+            Check(view.Children.Count > graph.Count && File.Exists(Path.Combine(output, "git-graph-preview.png")), "desenha nos e ligacoes do grafo Git");
         }
         private static void TestCatalog()
         {
@@ -126,6 +167,31 @@ namespace Negotchi
             File.WriteAllText(Path.Combine(directory, "state.json"), "{\"Appearance\":{\"FontSize\":999,\"Colors\":{\"Background\":\"invalida\"}}}");
             restored = store.Load();
             Check(restored.Appearance.FontSize == 22 && restored.Appearance.Colors["Background"] == "#17131C", "recupera cores invalidas e limita tamanho da fonte ao carregar");
+            var history = new AppState { Folder = directory, Messages = new List<ChatMessage> { new ChatMessage { Role = "user", Text = "primeira" } } };
+            history.EnsureConversations(); string first = history.ActiveConversationId;
+            history.Conversations.Add(new ConversationState { Id = "segunda", Title = "Segunda conversa", Folder = directory, Messages = new List<ChatMessage> { new ChatMessage { Role = "user", Text = "segunda" } } });
+            history.SaveActiveConversation(); history.ActiveConversationId = "segunda"; history.LoadActiveConversation(); store.Save(history); restored = store.Load();
+            Check(restored.Conversations.Count == 2 && restored.ActiveConversationId == "segunda" && restored.Messages[0].Text == "segunda" && restored.Conversations.Any(c => c.Id == first && c.Messages[0].Text == "primeira"), "preserva historico de conversas e conversa ativa");
+            restored.Conversations[0].Archived = true;
+            Check(restored.Conversations[0].Matches("primeira") && !restored.Conversations[0].Matches("ausente"), "busca conversas locais por titulo e conteudo salvo");
+            store.Save(restored); restored = store.Load();
+            Check(restored.Conversations.Any(c => c.Archived), "preserva conversas arquivadas sem apagar o historico");
+            string projectId = restored.ActiveProjectId;
+            restored.Projects.Add(new ProjectState { Id = "trabalho", Name = "Trabalho" }); restored.ActiveProjectId = "trabalho";
+            restored.Conversations.Add(new ConversationState { Id = "terceira", ProjectId = "trabalho", Title = "Terceira conversa", Folder = directory, Messages = new List<ChatMessage>() });
+            restored.ActiveConversationId = "terceira"; restored.LoadActiveConversation();
+            store.Save(restored); restored = store.Load();
+            Check(restored.Projects.Count == 2 && restored.ActiveProjectId == "trabalho" && restored.Conversations.Any(c => c.ProjectId == "trabalho"), "preserva projetos e a associacao de cada conversa");
+            Check(restored.Conversations.First(c => c.Id == first).ProjectId == projectId, "atribui conversas existentes ao projeto padrao na migracao");
+            var largeHistory = new AppState { Folder = directory };
+            largeHistory.Messages.Add(new ChatMessage { Role = "assistant", Text = new string('a', 2200000) + " 😀", PetName = "Codex" });
+            store.Save(largeHistory);
+            Check(store.Load().Messages[0].Text == largeHistory.Messages[0].Text, "reabre historicos acima de 2 MB usando o mesmo limite do salvamento");
+            var policies = new AppState { Folder = directory, Sandbox = "danger-full-access" }; policies.EnsureConversations(); policies.SaveActiveConversation(); string privileged = policies.ActiveConversationId;
+            policies.Conversations.Add(new ConversationState { Id = "safe", Folder = directory, Sandbox = "read-only", Messages = new List<ChatMessage>() }); policies.ActiveConversationId = "safe"; policies.LoadActiveConversation();
+            Check(policies.Sandbox == "read-only", "nova conversa nao herda acesso completo de outra conversa");
+            store.Save(policies); policies = store.Load(); policies.ActiveConversationId = privileged; policies.LoadActiveConversation();
+            Check(policies.Sandbox == "danger-full-access" && policies.Conversations.First(conversation => conversation.Id == "safe").Sandbox == "read-only", "permissoes independentes sobrevivem ao reinicio e a troca de conversa");
         }
         private static void TestPosition()
         {
@@ -156,7 +222,7 @@ namespace Negotchi
                     Check(client.IsConnected, "inicializa uma unica conexao para chamadas simultaneas");
                     var thread = await client.RequestAsync("thread/start", NegotchiApp.ThreadOptions(output));
                     Check(Json.Text(Json.Object(thread, "thread"), "id") == "thread-fake", "envia ferramenta dinamica e politica de permissao");
-                    string text = "Ola! Acentuacao: açao, café, coração.\nAbra o arquivo & mantenha $(literal).";
+                    string text = "Ola! Acentuacao: açao, café, coração. 😀 🚀\nAbra o arquivo & mantenha $(literal).";
                     var result = await client.RequestAsync("turn/start", Json.Map("threadId", "thread-fake", "input", new[] { Json.Map("type", "text", "text", text) }));
                     Check(Json.Text(Json.Object(result, "turn"), "echo") == text, "transmite UTF-8 e quebras de linha sem interpretacao de shell");
                     Check(await Task.WhenAny(completed.Task, Task.Delay(5000)) == completed.Task, "recebe conclusao apos ferramenta de desktop");
@@ -218,6 +284,20 @@ namespace Negotchi
                     Check(models[1].Efforts.SequenceEqual(new[] { "medium", "high" }), "carrega esforcos oferecidos pelo catalogo");
                     var skills = await commands.Skills(output);
                     Check(skills.Count == 2 && skills.Any(s => !s.Enabled), "consulta skills habilitadas e desativadas na pasta atual");
+                    var history = new ConversationHistory(client);
+                    var sessions = await history.List(false, CancellationToken.None);
+                    Check(sessions.Count == 2 && sessions.Any(session => session.Folder == "D:\\outro-projeto") && sessions[0].DisplayName == "Revisão 😀", "lista todas as paginas e pastas do resume --all com UTF-8");
+                    var archived = await history.List(true, CancellationToken.None);
+                    Check(archived.All(session => session.Archived), "consulta sessoes arquivadas separadamente");
+                    var messages = await history.Messages("history-1", "Codex");
+                    Check(messages.Count == 2 && messages[0].Role == "user" && messages[1].Text == "Resposta final 😀", "le historico paginado completo em ordem antes de retomar");
+                    await client.RequestAsync("test/history", Json.Map("repeat", true));
+                    bool repeated = false; try { await history.List(false, CancellationToken.None); } catch (InvalidOperationException) { repeated = true; }
+                    Check(repeated, "interrompe paginacao repetida em vez de perder ou duplicar sessoes");
+                    await client.RequestAsync("test/history", Json.Map("repeat", false));
+                    await history.Rename("history-1", "Nome revisado 😀"); await history.Archive("history-1", true); await history.Archive("history-1", false);
+                    var historyCalls = await client.RequestAsync("test/state", null);
+                    Check(Json.Text(Json.Object(historyCalls, "renamed"), "name") == "Nome revisado 😀" && Json.Items(historyCalls, "calls").Contains("thread/archive") && Json.Items(historyCalls, "calls").Contains("thread/unarchive"), "renomeia e arquiva usando operacoes nativas do Codex");
                     await client.RequestAsync("thread/settings/update", CodexCommands.ModelSettings("thread-fake", new ModelSelection { Model = "model-b", Effort = "medium" }));
                     var current = CodexCommands.MemoryConfig(await commands.ReadConfig(output), null);
                     await commands.ApplyMemoryGlobals(current, new MemoryPreferences { FeatureEnabled = true, UseMemories = false, GenerateMemories = false });
@@ -260,6 +340,14 @@ namespace Negotchi
                     await client.RequestAsync("thread/memoryMode/set", Json.Map("threadId", thread, "mode", "disabled"));
                     var memoryStatus = await client.RequestAsync("memory/status", Json.Map());
                     Check(memoryStatus.ContainsKey("v2Ready"), "consulta status real e altera permissao de memoria do chat");
+                    var nativeHistory = await new ConversationHistory(client).List(false, CancellationToken.None);
+                    Check(nativeHistory.All(entry => !string.IsNullOrEmpty(entry.Id)), "consulta resume --all pelo protocolo real instalado");
+                    var mcp = await McpConfiguration.Read(client);
+                    mcp.Servers["negotchi_sequence_test"] = Json.Map("command", "negotchi-test-never-executed", "enabled", false); await mcp.Write(client);
+                    mcp = await McpConfiguration.Read(client);
+                    Check(mcp.Servers.ContainsKey("negotchi_sequence_test") && Equals(Json.Get((Dictionary<string, object>)mcp.Servers["negotchi_sequence_test"], "enabled"), false), "configura MCP desativado no CODEX_HOME isolado pelo protocolo real");
+                    mcp.Servers.Remove("negotchi_sequence_test"); await mcp.Write(client);
+                    Check(!(await McpConfiguration.Read(client)).Servers.ContainsKey("negotchi_sequence_test"), "remove MCP sem alterar os outros ajustes de configuracao");
                 }
             }
             finally { Environment.SetEnvironmentVariable("CODEX_HOME", oldHome); }
@@ -268,7 +356,25 @@ namespace Negotchi
         {
             var application = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
             Theme.Apply(Theme.Preset("dark"));
+            string unicode = "Ação, não, revisão, café, coração — 😀 🚀 👁️👄👁️";
+            Check(unicode == "A\u00e7\u00e3o, n\u00e3o, revis\u00e3o, caf\u00e9, cora\u00e7\u00e3o \u2014 \U0001f600 \U0001f680 \U0001f441\ufe0f\U0001f444\U0001f441\ufe0f", "compila literais UTF-8 sem depender da pagina de codigo do Windows");
+            var unicodePreview = new StackPanel { Background = Theme.Card, Margin = new Thickness(12) };
+            foreach (string family in new[] { "Rubik", "Consolas", "Segoe UI" })
+                unicodePreview.Children.Add(new TextBox { Text = family + ": " + unicode, IsReadOnly = true, FontFamily = Theme.FontWithFallback(family), FontSize = 20, Foreground = Theme.Text, Background = Theme.Card, Padding = new Thickness(8), BorderThickness = new Thickness(0) });
+            Render(unicodePreview, 900, 170, Path.Combine(output, "unicode-preview.png"));
             var assets = new PetAssets(); var chat = new ChatWindow(assets); chat.SetFolder(@"C:\Users\Voce\Documents");
+            var resumeEntries = new List<HistoryConversation> {
+                new HistoryConversation { Id = "sessao-1", Title = "Revisar autenticação e permissões", Folder = @"C:\projetos\api", UpdatedAt = 1792800000 },
+                new HistoryConversation { Id = "sessao-2", Title = "Ajustar grafo de branches 😀", Folder = @"D:\projetos\Negotchi", UpdatedAt = 1792700000 }
+            };
+            var resumePicker = new ConversationPicker(null, @"C:\projetos\api", (archived, cancel) => Task.FromResult(resumeEntries));
+            ((Task)typeof(ConversationPicker).GetMethod("Reload", BindingFlags.NonPublic | BindingFlags.Instance).Invoke(resumePicker, null)).GetAwaiter().GetResult();
+            Render((FrameworkElement)resumePicker.Content, 910, 500, Path.Combine(output, "resume-picker-preview.png"));
+            var resumeList = Descendants<ListBox>((FrameworkElement)resumePicker.Content).Single();
+            Check(resumeList.Items.Count == 2 && FindButton((FrameworkElement)resumePicker.Content, "Todas as pastas") != null, "seletor CLI apresenta sessoes de todas as pastas por padrao");
+            Descendants<TextBox>((FrameworkElement)resumePicker.Content).Single(text => !text.IsReadOnly).Text = "branches";
+            Check(resumeList.Items.Count == 1 && ((HistoryConversation)resumeList.SelectedItem).Id == "sessao-2", "busca do seletor filtra a lista e seleciona um resultado visivel");
+            resumePicker.Close();
             var connectButton = FindButton((FrameworkElement)chat.Content, "Conectar conta");
             Check(connectButton.Visibility == Visibility.Collapsed, "aguarda a consulta da conta antes de oferecer login");
             chat.SetConnected(false); chat.SetStatus("Conecte sua conta para comecar.");
@@ -331,9 +437,9 @@ namespace Negotchi
             Theme.Apply(custom);
             Render((FrameworkElement)chat.Content, 464, 700, Path.Combine(output, "chat-light-preview.png"));
             Check(((SolidColorBrush)chat.Background).Color == (Color)ColorConverter.ConvertFromString("#EAF3F8") && ((SolidColorBrush)FindButton((FrameworkElement)chat.Content, "Enviar").Background).Color == (Color)ColorConverter.ConvertFromString("#2F6379"), "atualiza fundo e botoes existentes sem recriar o chat");
-            Check(Math.Abs(body.FontSize - 18) < 0.01 && body.FontFamily.Source == "Consolas", "atualiza fonte e tamanho das mensagens ja exibidas");
+            Check(Math.Abs(body.FontSize - 18) < 0.01 && body.FontFamily.Source == Theme.FontWithFallback("Consolas").Source, "atualiza fonte e tamanho das mensagens ja exibidas");
             var later = chat.AddMessage("assistant", "Mensagem nova.");
-            Check(Math.Abs(later.FontSize - 18) < 0.01 && later.FontFamily.Source == "Consolas", "novas mensagens seguem a tipografia configurada");
+            Check(Math.Abs(later.FontSize - 18) < 0.01 && later.FontFamily.Source == Theme.FontWithFallback("Consolas").Source, "novas mensagens seguem a tipografia configurada");
             var bubble = (Border)typeof(PetWindow).GetField("bubble", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(pet);
             Check(((SolidColorBrush)bubble.Background).Color == (Color)ColorConverter.ConvertFromString("#A0D7E8"), "aplica a cor do balao ao pet existente");
             Check(body.Text == "Mensagem que deve ser preservada." && composer.Text == "Rascunho preservado" && chat.ActivePetId == petId, "troca visual preserva mensagens, rascunho e pet selecionado");
@@ -341,7 +447,7 @@ namespace Negotchi
             Render((FrameworkElement)chat.Content, 414, (int)chat.MinHeight - 79, Path.Combine(output, "chat-large-font-preview.png"));
             Check(ButtonFits((FrameworkElement)chat.Content, "Enviar"), "preserva acesso ao envio com o maior tamanho de fonte");
             Theme.Apply(Theme.Preset("dark"));
-            Check(Math.Abs(body.FontSize - 13) < 0.01 && body.FontFamily.Source == "Segoe UI", "restaura a tipografia sem acumular escala");
+            Check(Math.Abs(body.FontSize - 13) < 0.01 && body.FontFamily.Source == Theme.FontWithFallback("Segoe UI").Source, "restaura a tipografia sem acumular escala");
         }
         private static bool ButtonFits(FrameworkElement root, string content)
         {
@@ -382,6 +488,8 @@ namespace Negotchi
             var config = Json.Map("model", "model-a", "model_reasoning_effort", "low", "features", Json.Map("memories", false), "memories", Json.Map("use_memories", true, "generate_memories", false));
             var modelSettings = Json.Map(); var calls = new List<string>();
             bool accountLoggedIn = true, limitsUnavailable = false;
+            bool repeatHistory = false, failHistoryRead = false;
+            Dictionary<string, object> renamed = Json.Map();
             double accountUsedPercent = 25;
             string line;
             while ((line = Console.ReadLine()) != null)
@@ -417,6 +525,27 @@ namespace Negotchi
                 else if (method == "memory/status") Write(Json.Map("id", id, "result", Json.Map("v2Ready", false, "v2ConsolidatedThreads", 3)));
                 else if (method == "thread/memoryMode/set") Write(Json.Map("id", id, "result", Json.Map()));
                 else if (method == "thread/settings/update") { modelSettings = parameters; Write(Json.Map("id", id, "result", Json.Map())); }
+                else if (method == "test/history") { repeatHistory = Equals(Json.Get(parameters, "repeat"), true); failHistoryRead = Equals(Json.Get(parameters, "failRead"), true); Write(Json.Map("id", id, "result", Json.Map())); }
+                else if (method == "thread/list")
+                {
+                    if (Json.Get(parameters, "cwd") != null || Json.Items(parameters, "modelProviders").Length != 0 || !parameters.ContainsKey("modelProviders")) return 7;
+                    bool second = Json.Text(parameters, "cursor") == "history-page-2";
+                    var thread = Json.Map("id", second ? "history-2" : "history-1", "name", second ? "Outra conversa" : "Revisão 😀", "preview", "Pergunta anterior", "cwd", second ? "D:\\outro-projeto" : Environment.CurrentDirectory, "updatedAt", second ? 100 : 200, "createdAt", 50);
+                    Write(Json.Map("id", id, "result", Json.Map("data", new[] { thread }, "nextCursor", !second || repeatHistory ? "history-page-2" : null)));
+                }
+                else if (method == "thread/read")
+                {
+                    if (failHistoryRead) Write(Json.Map("id", id, "error", Json.Map("code", -32000, "message", "Falha simulada ao ler sessao")));
+                    else Write(Json.Map("id", id, "result", Json.Map("thread", Json.Map("id", Json.Text(parameters, "threadId"), "cwd", Environment.CurrentDirectory, "model", "model-b", "reasoningEffort", "high"))));
+                }
+                else if (method == "thread/turns/list")
+                {
+                    if (Json.Text(parameters, "itemsView") != "full" || Json.Text(parameters, "sortDirection") != "asc") return 8;
+                    bool second = Json.Text(parameters, "cursor") == "turn-page-2";
+                    var item = second ? Json.Map("type", "agentMessage", "text", "Resposta final 😀") : Json.Map("type", "userMessage", "content", new[] { Json.Map("type", "text", "text", "Primeira pergunta") });
+                    Write(Json.Map("id", id, "result", Json.Map("data", new[] { Json.Map("id", second ? "turn-2" : "turn-1", "items", new[] { item }) }, "nextCursor", second ? null : "turn-page-2")));
+                }
+                else if (method == "thread/unarchive") Write(Json.Map("id", id, "result", Json.Map()));
                 else if (method == "account/read") Write(Json.Map("id", id, "result", Json.Map("account", accountLoggedIn ? Json.Map("type", "chatgpt", "email", "usuario@example.com", "planType", "plus") : null)));
                 else if (method == "account/rateLimits/read")
                 {
@@ -443,7 +572,9 @@ namespace Negotchi
                 }
                 else if (method == "account/usage/read") Write(Json.Map("id", id, "result", Json.Map("summary", Json.Map("lifetimeTokens", 12345, "peakDailyTokens", 5000))));
                 else if (method == "mcpServerStatus/list") Write(Json.Map("id", id, "result", Json.Map("data", new[] { Json.Map("name", "arquivos", "authStatus", "notLoggedIn", "tools", Json.Map("read_file", Json.Map())) })));
-                else if (method == "test/state") Write(Json.Map("id", id, "result", Json.Map("modelSettings", modelSettings, "calls", calls.ToArray())));
+                else if (method == "test/state") Write(Json.Map("id", id, "result", Json.Map("modelSettings", modelSettings, "calls", calls.ToArray(), "renamed", renamed)));
+                else if (method == "thread/name/set") { renamed = parameters; Write(Json.Map("id", id, "result", Json.Map())); }
+                else if (method == "thread/archive") Write(Json.Map("id", id, "result", Json.Map()));
                 else if (method == "thread/start")
                 {
                     var tools = Json.Items(parameters, "dynamicTools");
@@ -585,7 +716,8 @@ namespace Negotchi
                         var pending = (SkillChoice)typeof(NegotchiApp).GetField("pendingSkill", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(application);
                         Check(pending != null && pending.Name == "teste" && composer.Text == "$teste Rascunho preservado", "seleciona skill sem perder o pedido em edicao");
                         chat.ClearSkill(); Check(composer.Text == "Rascunho preservado", "remover skill tambem remove a mencao automatica");
-                        await CommandDialogSmoke(application, "/mcp", "Conexoes MCP", window => { FindButton(window, "Fechar").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); });
+                        await CommandDialogSmoke(application, "/mcp", "Servidores MCP", window => { FindButton(window, "Fechar").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); });
+                        await CommandDialogSmoke(application, "/account", "Perfil e atividade", window => { Render((FrameworkElement)window.Content, 580, 500, Path.Combine(directory, "account-preview.png")); FindButton(window, "Fechar").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); });
                         var agent = (CodexClient)typeof(NegotchiApp).GetField("agent", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(application);
                         var captured = await agent.RequestAsync("test/state", null);
                         Check(!Json.Items(captured, "calls").Contains("turn/start"), "comandos de controle nao viram turnos de perguntas ao modelo");
@@ -618,7 +750,7 @@ namespace Negotchi
                         });
                         var afterAppearance = initialStore.Load();
                         Check(afterAppearance.Appearance.Mode == "light" && afterAppearance.Appearance.FontFamily == "Consolas" && afterAppearance.Appearance.FontSize == 16 && afterAppearance.Appearance.Colors["Background"] == "#EAF3F8", "salva a aparencia aplicada pelo menu e pela roda seletora");
-                        Check(((SolidColorBrush)chat.Background).Color == (Color)ColorConverter.ConvertFromString("#EAF3F8") && composer.FontFamily.Source == "Consolas", "aplica tema e fonte imediatamente na janela existente");
+                        Check(((SolidColorBrush)chat.Background).Color == (Color)ColorConverter.ConvertFromString("#EAF3F8") && composer.FontFamily.Source == Theme.FontWithFallback("Consolas").Source, "aplica tema e fonte imediatamente na janela existente");
                         Check(afterAppearance.ThreadId == beforeAppearance.ThreadId && afterAppearance.Messages.Count == beforeAppearance.Messages.Count && afterAppearance.Folder == beforeAppearance.Folder && composer.Text == "Rascunho preservado", "menu de aparencia preserva conversa, pasta e rascunho");
                         DialogSmoke(application, () => FindButton((FrameworkElement)chat.Content, "Aparencia").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)), "Aparencia", window => {
                             FindButton(window, "Restaurar padrao").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -628,6 +760,23 @@ namespace Negotchi
                         });
                         Check(initialStore.Load().Appearance.Mode == "light" && ((SolidColorBrush)chat.Background).Color == (Color)ColorConverter.ConvertFromString("#EAF3F8"), "cancelar mantem as preferencias aplicadas anteriormente");
                         Render((FrameworkElement)chat.Content, (int)chat.ActualWidth - 16, (int)chat.ActualHeight - 39, Path.Combine(directory, "ui-smoke-chat.png"));
+                        var import = typeof(NegotchiApp).GetMethod("OpenHistoryConversation", BindingFlags.NonPublic | BindingFlags.Instance);
+                        var appStateField = typeof(NegotchiApp).GetField("state", BindingFlags.NonPublic | BindingFlags.Instance);
+                        var commandBusyField = typeof(NegotchiApp).GetField("commandBusy", BindingFlags.NonPublic | BindingFlags.Instance);
+                        var historyEntry = new HistoryConversation { Id = "history-1", Title = "Revisão 😀", Folder = directory };
+                        string previousConversation = initialStore.Load().ActiveConversationId;
+                        await accountAgent.RequestAsync("test/history", Json.Map("failRead", true));
+                        import.Invoke(application, new object[] { historyEntry });
+                        await WaitFor(() => !(bool)commandBusyField.GetValue(application));
+                        Check(initialStore.Load().ActiveConversationId == previousConversation, "falha de leitura do historico preserva a conversa ativa");
+                        await accountAgent.RequestAsync("test/history", Json.Map());
+                        import.Invoke(application, new object[] { historyEntry });
+                        await WaitFor(() => !(bool)commandBusyField.GetValue(application));
+                        var imported = (AppState)appStateField.GetValue(application);
+                        Check(imported.ThreadId == "history-1" && imported.Messages.Count == 2 && imported.SelectedModel == "model-b", "retoma sessao externa com historico completo e modelo preservado");
+                        import.Invoke(application, new object[] { historyEntry });
+                        await WaitFor(() => !(bool)commandBusyField.GetValue(application));
+                        Check(initialStore.Load().Conversations.Count(conversation => conversation.ThreadId == "history-1") == 1, "reabrir a mesma sessao nao duplica conversas locais");
                         chat.Close(); Check(!chat.IsVisible && pet.IsVisible, "fechar o chat mantem o personagem em execucao");
                         var trayField = typeof(NegotchiApp).GetField("tray", BindingFlags.NonPublic | BindingFlags.Instance);
                         Check(((System.Windows.Forms.NotifyIcon)trayField.GetValue(application)).Visible, "mantem acesso pelo icone perto do relogio");

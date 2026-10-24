@@ -27,8 +27,13 @@ namespace Negotchi
         public static readonly SlashCommand[] All = {
             new SlashCommand("/model", "Escolher modelo e esforco de raciocinio", "/reasoning"),
             new SlashCommand("/usage", "Consultar limites, atividade e tokens", "/status"),
+            new SlashCommand("/account", "Abrir perfil, limites e atividade da conta"),
+            new SlashCommand("/files", "Explorar, buscar e visualizar arquivos desta conversa"),
+            new SlashCommand("/diff", "Comparar alteracoes e comentar trechos do repositorio"),
+            new SlashCommand("/terminal", "Abrir abas de terminal com a politica desta conversa"),
             new SlashCommand("/skills", "Escolher uma skill para o proximo pedido"),
             new SlashCommand("/memories", "Configurar memorias do Codex e deste chat"),
+            new SlashCommand("/permissions", "Definir acesso a arquivos desta conversa"),
             new SlashCommand("/mcp", "Consultar servidores e ferramentas conectados"),
             new SlashCommand("/new", "Iniciar uma nova conversa"),
             new SlashCommand("/login", "Conectar a conta do Codex"),

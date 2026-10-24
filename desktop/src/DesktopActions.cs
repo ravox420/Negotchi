@@ -58,5 +58,27 @@ namespace Negotchi
             window.Content = layout;
             Theme.BindTypography(window); return window.ShowDialog() == true;
         }
+
+        public static bool Review(Window owner, NormalizedApprovalRequest request)
+        {
+            var window = new Window { Title = request.Title, Width = 620, Height = 500, MinWidth = 400, MinHeight = 300, Background = Theme.Background, Foreground = Theme.Text, FontFamily = new System.Windows.Media.FontFamily("Segoe UI"), WindowStartupLocation = WindowStartupLocation.CenterOwner, ShowInTaskbar = false, Topmost = owner != null && owner.Topmost };
+            if (owner != null && owner.IsVisible) window.Owner = owner;
+            var layout = new DockPanel { Margin = new Thickness(22) }; var heading = new TextBlock { Text = request.Title, FontSize = 21, FontWeight = FontWeights.SemiBold, Margin = new Thickness(0, 0, 0, 10) }; DockPanel.SetDock(heading, Dock.Top); layout.Children.Add(heading);
+            var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(0, 14, 0, 0) }; buttons.Children.Add(Theme.Button("Recusar", delegate { window.DialogResult = false; }, false)); buttons.Children.Add(Theme.Button("Autorizar uma vez", delegate { window.DialogResult = true; }, true)); DockPanel.SetDock(buttons, Dock.Bottom); layout.Children.Add(buttons);
+            var body = new StackPanel(); AddReviewSection(body, null, request.Summary);
+            AddReviewSection(body, "Motivo", request.Reason); AddReviewSection(body, "Comando", request.Command); AddReviewSection(body, "Pasta", request.WorkingDirectory); AddReviewSection(body, "Destino de rede", request.NetworkTarget); AddReviewSection(body, "Raiz concedida", request.GrantRoot);
+            if (request.FileChanges.Count > 0) AddReviewSection(body, "Arquivos", string.Join("\n", request.FileChanges.Select(change => "• " + change.Path + (string.IsNullOrEmpty(change.Kind) ? "" : " (" + change.Kind + ")"))));
+            if (request.Permissions.Count > 0) AddReviewSection(body, "Permissões ou ações", string.Join("\n", request.Permissions.Select(value => "• " + value)));
+            string raw = Json.Encode(request.RawParameters) + (request.RawItem.Count == 0 ? "" : "\n\nItem associado\n" + Json.Encode(request.RawItem));
+            body.Children.Add(new Expander { Header = "Detalhes técnicos", Foreground = Theme.Muted, Margin = new Thickness(0, 14, 0, 0), Content = new TextBox { Text = raw, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, MaxHeight = 160, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Background = Theme.Card, Foreground = Theme.Text, BorderBrush = Theme.Line, Padding = new Thickness(8), FontSize = 11 } });
+            layout.Children.Add(new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }); window.Content = layout; Theme.BindTypography(window); return window.ShowDialog() == true;
+        }
+
+        private static void AddReviewSection(StackPanel body, string title, string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return;
+            if (!string.IsNullOrWhiteSpace(title)) body.Children.Add(new TextBlock { Text = title, FontWeight = FontWeights.SemiBold, FontSize = 12, Margin = new Thickness(0, 11, 0, 3) });
+            body.Children.Add(new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, Foreground = Theme.Text, FontSize = 13 });
+        }
     }
 }

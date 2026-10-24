@@ -36,6 +36,14 @@ namespace Negotchi
             layout.Children.Add(new TextBox { Text = text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Background = Theme.Card, Foreground = Theme.Text, BorderBrush = Theme.Line, Padding = new Thickness(13), FontSize = 13 });
             Theme.BindTypography(window); window.ShowDialog();
         }
+        public static string Prompt(Window owner, string title, string hint, string current)
+        {
+            var window = Window(owner, title, 310); var layout = Layout(window, title, hint); var buttons = Buttons(layout); string result = null;
+            var input = new TextBox { Text = current ?? "", Background = Theme.Card, Foreground = Theme.Text, BorderBrush = Theme.Line, Padding = new Thickness(8), MaxLength = 200 }; layout.Children.Add(input);
+            buttons.Children.Add(Theme.Button("Cancelar", delegate { window.Close(); }, false));
+            buttons.Children.Add(Theme.Button("Salvar", delegate { if (string.IsNullOrWhiteSpace(input.Text)) return; result = input.Text.Trim(); window.Close(); }, true));
+            window.Loaded += delegate { input.Focus(); input.SelectAll(); }; Theme.BindTypography(window); window.ShowDialog(); return result;
+        }
 
         public static ModelSelection Model(Window owner, List<ModelChoice> models, string current, string currentEffort)
         {
@@ -108,6 +116,12 @@ namespace Negotchi
                 window.DialogResult = true;
             }, true));
             layout.Children.Add(new ScrollViewer { Content = body, VerticalScrollBarVisibility = ScrollBarVisibility.Auto }); Theme.BindTypography(window); window.ShowDialog(); return selection;
+        }
+        public static string Permissions(Window owner, string current)
+        {
+            var window = Window(owner, "Permissões", 310); var layout = Layout(window, "/permissions", "Alterações de arquivos continuam exigindo confirmação."); var buttons = Buttons(layout); string selection = null;
+            var options = new ComboBox { ItemsSource = new[] { "Somente leitura", "Permitir alterações com confirmação", "Acesso completo (alto risco)" }, SelectedIndex = current == "danger-full-access" ? 2 : current == "workspace-write" ? 1 : 0, MinHeight = 34 }; layout.Children.Add(options);
+            buttons.Children.Add(Theme.Button("Cancelar", delegate { window.Close(); }, false)); buttons.Children.Add(Theme.Button("Aplicar", delegate { if (options.SelectedIndex == 2 && !DesktopActions.Review(window, "Acesso completo", "O acesso completo remove as restrições do sandbox para os comandos desta conversa. Continue apenas se confiar na tarefa e revisar cada aprovação.")) return; selection = options.SelectedIndex == 2 ? "danger-full-access" : options.SelectedIndex == 1 ? "workspace-write" : "read-only"; window.DialogResult = true; }, true)); Theme.BindTypography(window); window.ShowDialog(); return selection;
         }
         private static CheckBox MemoryCheck(string label, bool? value) { return new CheckBox { Content = label, IsChecked = value, IsThreeState = true, Foreground = Theme.Text, Margin = new Thickness(0, 5, 0, 12), FontSize = 13 }; }
     }
