@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -13,7 +15,7 @@ namespace Negotchi
         private readonly ScrollViewer scroll;
         private readonly TextBox input;
         private readonly TextBlock status, folder;
-        private readonly Button send, stop, connect, chooseFolder, newChat, conversations, git, attach;
+        private readonly Button send, stop, connect, chooseFolder, learn, newChat, conversations, git, attach;
         private readonly CommandMenu commandMenu;
         private readonly Border skillBanner;
         private readonly TextBlock skillText;
@@ -28,7 +30,7 @@ namespace Negotchi
         private string petName;
         private bool quitting;
         public event Action<string> Send;
-        public Action Stop, Connect, OpenFile, ChooseFolder, NewChat, Conversations, Git, Appearance;
+        public Action Stop, Connect, OpenFile, ChooseFolder, Learn, NewChat, Conversations, Git, Appearance;
         public event Action<string> PetSelected;
         public event Action<string> CommandRequested;
         public Action ClearSkill;
@@ -87,6 +89,7 @@ namespace Negotchi
             var toolbar = new WrapPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
             var open = Theme.Button("Abrir arquivo", delegate { if (OpenFile != null) OpenFile(); }, false); toolbar.Children.Add(open);
             chooseFolder = Theme.Button("Pasta de trabalho", delegate { if (ChooseFolder != null) ChooseFolder(); }, false); toolbar.Children.Add(chooseFolder);
+            learn = Theme.Button("Estudos", delegate { if (Learn != null) Learn(); }, false); learn.ToolTip = "Abrir o tutor de estudos em uma nova conversa"; toolbar.Children.Add(learn);
             conversations = Theme.Button("Conversas", delegate { if (Conversations != null) Conversations(); }, false); toolbar.Children.Add(conversations);
             git = Theme.Button("Git", delegate { if (Git != null) Git(); }, false); toolbar.Children.Add(git);
             newChat = Theme.Button("Nova conversa", delegate { if (NewChat != null) NewChat(); }, false); newChat.Margin = new Thickness(0); toolbar.Children.Add(newChat);
@@ -164,7 +167,7 @@ namespace Negotchi
         {
             bool active = turnBusy || commandBusy;
             send.IsEnabled = !active; stop.IsEnabled = turnBusy; connect.IsEnabled = !active && !connecting;
-            chooseFolder.IsEnabled = !active; newChat.IsEnabled = !active; conversations.IsEnabled = !active; git.IsEnabled = !active;
+            chooseFolder.IsEnabled = !active; learn.IsEnabled = !active; newChat.IsEnabled = !active; conversations.IsEnabled = !active; git.IsEnabled = !active;
             picker.IsEnabled = !active; picker.ToolTip = active ? "Termine ou pare o pedido antes de trocar de pet." : null;
             skillBanner.IsEnabled = !active;
             commandMenu.SetEnabled(!active);
@@ -187,13 +190,18 @@ namespace Negotchi
             if (Send != null) { input.Clear(); Send(text); }
         }
 
-        public TextBox AddMessage(string role, string text, string speaker = null)
+        public TextBox AddMessage(string role, string text, string speaker = null, IEnumerable<PendingAttachment> media = null)
         {
             bool user = role == "user", system = role == "system";
             var contents = new StackPanel();
             contents.Children.Add(new TextBlock { Text = user ? "VOCE" : system ? "NEGOTCHI" : (speaker ?? petName).ToUpperInvariant(), Foreground = user ? Theme.UserBubbleText : Theme.AssistantBubbleText, Opacity = 0.8, FontWeight = FontWeights.SemiBold, FontSize = 9, Margin = new Thickness(0, 0, 0, 6) });
             var body = new TextBox { Text = text, IsReadOnly = true, TextWrapping = TextWrapping.Wrap, BorderThickness = new Thickness(0), Background = Brushes.Transparent, Foreground = user ? Theme.UserBubbleText : Theme.AssistantBubbleText, FontSize = 13, Padding = new Thickness(0), IsReadOnlyCaretVisible = false };
             contents.Children.Add(body);
+            foreach (var attachment in (media ?? new PendingAttachment[0]).Where(item => item != null && (item.Kind == "image" || item.Kind == "gif" || item.Kind == "video") && File.Exists(item.Path)))
+            {
+                try { contents.Children.Add(MediaAttachmentView.Create(attachment, 300)); }
+                catch (Exception error) { contents.Children.Add(new TextBlock { Text = "Mídia indisponível: " + error.Message, Foreground = Theme.Muted, FontSize = 10, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 7, 0, 0) }); }
+            }
             var card = new Border { Background = user ? Theme.UserBubble : Theme.AssistantBubble, CornerRadius = new CornerRadius(12), Padding = new Thickness(13), Margin = user ? new Thickness(35, 0, 0, 11) : new Thickness(0, 0, 18, 11), Child = contents };
             messages.Children.Add(card); Theme.BindTypography(card); ScrollToLatest(); return body;
         }

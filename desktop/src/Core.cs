@@ -39,6 +39,7 @@ namespace Negotchi
         public string Role { get; set; }
         public string Text { get; set; }
         public string PetName { get; set; }
+        public List<PendingAttachment> Media { get; set; }
     }
 
     public sealed class ConversationState
@@ -95,6 +96,7 @@ namespace Negotchi
         public string ActiveConversationId { get; set; }
         public List<ProjectState> Projects { get; set; }
         public string ActiveProjectId { get; set; }
+        public List<ProcessReminder> ProcessReminders { get; set; }
         public AppState()
         {
             X = -1; Y = -1; Scale = 1; Topmost = true; SelectedPetId = "PimpDogg";
@@ -103,6 +105,7 @@ namespace Negotchi
             Messages = new List<ChatMessage>();
             Conversations = new List<ConversationState>();
             Projects = new List<ProjectState>();
+            ProcessReminders = new List<ProcessReminder>();
             Appearance = new AppearanceSettings();
         }
         public void EnsureProjects()
@@ -119,6 +122,7 @@ namespace Negotchi
         public void EnsureConversations()
         {
             EnsureProjects();
+            ProcessReminders = ProcessReminders ?? new List<ProcessReminder>();
             Conversations = Conversations ?? new List<ConversationState>();
             if (Conversations.Count == 0) Conversations.Add(new ConversationState { Id = Guid.NewGuid().ToString("N"), Title = "Conversa nova", Folder = Folder, ThreadId = ThreadId, Messages = Copy(Messages), SelectedModel = SelectedModel, ReasoningEffort = ReasoningEffort, ThreadMemoryMode = ThreadMemoryMode, TokenUsage = TokenUsage, Sandbox = SafeSandbox(Sandbox) });
             foreach (var conversation in Conversations)
@@ -144,7 +148,7 @@ namespace Negotchi
             var conversation = ActiveConversation(); ActiveProjectId = conversation.ProjectId; Sandbox = SafeSandbox(conversation.Sandbox); Folder = conversation.Folder; ThreadId = conversation.ThreadId; Messages = Copy(conversation.Messages); SelectedModel = conversation.SelectedModel; ReasoningEffort = conversation.ReasoningEffort; ThreadMemoryMode = conversation.ThreadMemoryMode; TokenUsage = conversation.TokenUsage;
         }
         internal static string SafeSandbox(string value) { return value == "workspace-write" || value == "danger-full-access" ? value : "read-only"; }
-        private static List<ChatMessage> Copy(IEnumerable<ChatMessage> messages) { return (messages ?? new ChatMessage[0]).Select(message => new ChatMessage { Role = message.Role, Text = message.Text, PetName = message.PetName }).ToList(); }
+        private static List<ChatMessage> Copy(IEnumerable<ChatMessage> messages) { return (messages ?? new ChatMessage[0]).Select(message => new ChatMessage { Role = message.Role, Text = message.Text, PetName = message.PetName, Media = (message.Media ?? new List<PendingAttachment>()).Where(item => item != null).Select(item => new PendingAttachment { Path = item.Path, Name = item.Name, Kind = item.Kind, Size = item.Size }).ToList() }).ToList(); }
     }
 
     internal sealed class StateStore

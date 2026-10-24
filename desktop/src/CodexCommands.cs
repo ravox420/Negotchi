@@ -38,6 +38,7 @@ namespace Negotchi
             new SlashCommand("/new", "Iniciar uma nova conversa"),
             new SlashCommand("/login", "Conectar a conta do Codex"),
             new SlashCommand("/pets", "Abrir a selecao de personagens"),
+            new SlashCommand("/monitor", "Monitorar o fechamento de um aplicativo"),
             new SlashCommand("/import-pet", "Importar um pet a partir de pet.json e spritesheet"),
             new SlashCommand("/create-pet", "Criar um pet animado com onze estados", "/create-pets"),
             new SlashCommand("/help", "Ver os comandos disponiveis")

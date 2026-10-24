@@ -79,7 +79,7 @@ namespace Negotchi
             actions.Children.Add(Theme.Button("Autenticar", async delegate { await Login(); }, false));
             actions.Children.Add(Theme.Button("Fechar", delegate { Close(); }, false));
             var grid = new Grid(); grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) }); grid.ColumnDefinitions.Add(new ColumnDefinition());
-            list = new ListBox { Background = Theme.Card, Foreground = Theme.Text, BorderBrush = Theme.Line }; grid.Children.Add(list);
+            list = new ListBox { Foreground = Theme.Text }; grid.Children.Add(list);
             details = new TextBox { IsReadOnly = true, TextWrapping = TextWrapping.Wrap, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Background = Theme.Card, Foreground = Theme.Text, BorderBrush = Theme.Line, Margin = new Thickness(10, 0, 0, 0), Padding = new Thickness(10) }; Grid.SetColumn(details, 1); grid.Children.Add(details); root.Children.Add(grid);
             list.SelectionChanged += delegate { ShowDetails(); }; Content = root; Theme.BindTypography(this);
             Loaded += async delegate { await Refresh(); }; Closed += delegate { closed = true; };

@@ -58,8 +58,13 @@ namespace Negotchi
             string text = session.Input.Text; if (string.IsNullOrWhiteSpace(text) || session.Running) return;
             if (!DesktopActions.Review(this, "Executar no terminal", "Pasta: " + folder + "\nSandbox: " + sandbox + "\n\n" + text)) return;
             session.ProcessId = "negotchi-terminal-" + Guid.NewGuid().ToString("N"); session.Stdout.Reset(); session.Stderr.Reset(); session.Running = true; session.Run.IsEnabled = false; session.Stop.IsEnabled = true; session.Input.IsEnabled = false; session.Output.AppendText("\n> " + text + "\n");
-            try { var result = await client.RequestAsync("command/exec", TerminalPolicy.Command(text, folder, sandbox, session.ProcessId), 315000); if (!closed) session.Output.AppendText("\n[Processo encerrado: " + Json.Text(result, "exitCode") + "]\n" + Json.Text(result, "stdout") + Json.Text(result, "stderr")); }
-            catch (Exception error) { if (!closed) session.Output.AppendText("\nFalha: " + error.Message + "\n"); try { await client.RequestAsync("command/exec/terminate", Json.Map("processId", session.ProcessId)); } catch (Exception) { } }
+            try
+            {
+                bool failed = false;
+                try { var result = await client.RequestAsync("command/exec", TerminalPolicy.Command(text, folder, sandbox, session.ProcessId), 315000); if (!closed) session.Output.AppendText("\n[Processo encerrado: " + Json.Text(result, "exitCode") + "]\n" + Json.Text(result, "stdout") + Json.Text(result, "stderr")); }
+                catch (Exception error) { failed = true; if (!closed) session.Output.AppendText("\nFalha: " + error.Message + "\n"); }
+                if (failed) { try { await client.RequestAsync("command/exec/terminate", Json.Map("processId", session.ProcessId)); } catch (Exception) { } }
+            }
             finally { session.Running = false; if (!closed) { session.Run.IsEnabled = true; session.Stop.IsEnabled = false; session.Input.IsEnabled = true; } }
         }
         private void Output(string method, Dictionary<string, object> parameters)

@@ -42,6 +42,7 @@ namespace Negotchi
         }
 
         public static void Launch(string path) { Process.Start(new ProcessStartInfo(path) { UseShellExecute = true }); }
+        public static void LaunchCommand(string fileName, string arguments, string folder) { Process.Start(new ProcessStartInfo(fileName, arguments) { UseShellExecute = true, WorkingDirectory = folder }); }
 
         public static bool Review(Window owner, string title, string description)
         {

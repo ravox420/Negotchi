@@ -62,7 +62,7 @@ namespace Negotchi
             buttons.Children.Add(Theme.Button("Editar / anotar", delegate { try { if (selected != null && File.Exists(selected)) new TextEditorWindow(this, this.rootPath, selected, sandbox, annotate ?? reference).ShowDialog(); } catch (Exception error) { status.Text = error.Message; } }, false));
             buttons.Children.Add(Theme.Button("Referenciar", delegate { try { if (selected == null) return; reference(WorkspaceFiles.Resolve(this.rootPath, selected)); Close(); } catch (Exception error) { status.Text = error.Message; } }, false));
             buttons.Children.Add(Theme.Button("Fechar", delegate { Close(); }, true));
-            var content = new Grid(); tree = new TreeView { Background = Theme.Card, Foreground = Theme.Text, BorderBrush = Theme.Line }; content.Children.Add(tree); results = new ListBox { Background = Theme.Card, Foreground = Theme.Text, BorderBrush = Theme.Line, Visibility = Visibility.Collapsed }; content.Children.Add(results); root.Children.Add(content);
+            var content = new Grid(); tree = new TreeView { Foreground = Theme.Text }; content.Children.Add(tree); results = new ListBox { Foreground = Theme.Text, Visibility = Visibility.Collapsed }; content.Children.Add(results); root.Children.Add(content);
             tree.SelectedItemChanged += delegate { var item = tree.SelectedItem as TreeViewItem; selected = item == null ? null : item.Tag as string; };
             results.SelectionChanged += delegate { selected = results.SelectedItem as string; };
             tree.MouseDoubleClick += delegate { if (selected != null && File.Exists(selected)) OpenSelected(true); }; results.MouseDoubleClick += delegate { OpenSelected(true); };

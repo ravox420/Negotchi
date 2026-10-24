@@ -42,7 +42,7 @@ namespace Negotchi
         }
     }
 
-    internal static class Theme
+    internal static partial class Theme
     {
         public const string DefaultFontFamily = "Segoe UI, Segoe UI Emoji, Segoe UI Symbol";
         public static readonly ThemeColor[] Colors = {
@@ -67,6 +67,7 @@ namespace Negotchi
         private static readonly Dictionary<double, string> fontKeys = new Dictionary<double, string>();
         private static AppearanceSettings current = new AppearanceSettings();
         private const string FontFamilyKey = "Negotchi.FontFamily";
+        private const string OperationalFontFamilyKey = "Negotchi.OperationalFontFamily";
         public const string ChatMinHeightKey = "Negotchi.ChatMinHeight";
         public static Brush Background { get { return palette["Background"].Brush; } }
         public static Brush Card { get { return palette["Surface"].Brush; } }
@@ -124,6 +125,7 @@ namespace Negotchi
             var resources = Application.Current.Resources;
             foreach (var color in Colors) resources["Negotchi.Color." + color.Key] = color.Brush;
             resources[FontFamilyKey] = FontWithFallback(current.FontFamily);
+            resources[OperationalFontFamilyKey] = FontWithFallback("Cascadia Mono, Consolas");
             resources[ChatMinHeightKey] = 560 + Math.Max(0, current.FontSize - 13) * 16;
             foreach (var entry in fontKeys) resources[entry.Value] = entry.Key * current.FontSize / 13;
             resources[SystemColors.HighlightBrushKey] = SelectedButton;
@@ -132,6 +134,9 @@ namespace Negotchi
             resources[SystemColors.WindowTextBrushKey] = Text;
             resources[SystemColors.ControlBrushKey] = ButtonBackground;
             resources[SystemColors.ControlTextBrushKey] = ButtonText;
+            if (!resources.Contains("Negotchi.ScrollThumb")) InstallScrollStyles(resources);
+            InstallWindowChrome();
+            foreach (Window window in Application.Current.Windows) ApplyWindowChrome(window);
             if (!resources.Contains(typeof(ComboBox))) InstallControlStyles(resources);
         }
         private static string FontKey(double size)
@@ -164,23 +169,33 @@ namespace Negotchi
         private static void InstallControlStyles(ResourceDictionary resources)
         {
             var textBox = new Style(typeof(TextBox));
+            textBox.Setters.Add(new Setter(Control.FontFamilyProperty, new DynamicResourceExtension(OperationalFontFamilyKey)));
+            textBox.Setters.Add(new Setter(Control.BackgroundProperty, ColorResource("Surface")));
+            textBox.Setters.Add(new Setter(Control.ForegroundProperty, ColorResource("Text")));
+            textBox.Setters.Add(new Setter(Control.BorderBrushProperty, ColorResource("Border")));
+            textBox.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(1)));
+            textBox.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(9, 6, 9, 6)));
             var textBorder = new FrameworkElementFactory(typeof(Border), "FieldBorder");
             textBorder.SetValue(Border.BackgroundProperty, new TemplateBindingExtension(Control.BackgroundProperty)); textBorder.SetValue(Border.BorderBrushProperty, new TemplateBindingExtension(Control.BorderBrushProperty)); textBorder.SetValue(Border.BorderThicknessProperty, new TemplateBindingExtension(Control.BorderThicknessProperty));
             var textContent = new FrameworkElementFactory(typeof(ScrollViewer), "PART_ContentHost"); textContent.SetValue(FrameworkElement.MarginProperty, new TemplateBindingExtension(Control.PaddingProperty)); textContent.SetValue(UIElement.FocusableProperty, false); textBorder.AppendChild(textContent);
             var textTemplate = new ControlTemplate(typeof(TextBox)) { VisualTree = textBorder };
             var focused = new Trigger { Property = UIElement.IsKeyboardFocusWithinProperty, Value = true }; focused.Setters.Add(new Setter(Border.BorderBrushProperty, ColorResource("Accent"), "FieldBorder")); textTemplate.Triggers.Add(focused);
+            var readOnly = new Trigger { Property = TextBox.IsReadOnlyProperty, Value = true }; readOnly.Setters.Add(new Setter(Control.FontFamilyProperty, new DynamicResourceExtension(FontFamilyKey))); textBox.Triggers.Add(readOnly);
             textBox.Setters.Add(new Setter(Control.TemplateProperty, textTemplate)); resources[typeof(TextBox)] = textBox;
             var item = new Style(typeof(ListBoxItem));
             item.Setters.Add(new Setter(Control.ForegroundProperty, ColorResource("ButtonText")));
             item.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+            item.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(5, 8, 5, 8)));
             item.Setters.Add(new Setter(Control.TemplateProperty, ItemTemplate(typeof(ListBoxItem))));
             resources[typeof(ListBoxItem)] = item;
+            var list = new Style(typeof(ListBox)); list.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent)); list.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0))); list.Setters.Add(new Setter(Control.FontFamilyProperty, new DynamicResourceExtension(OperationalFontFamilyKey))); resources[typeof(ListBox)] = list;
             var comboItem = new Style(typeof(ComboBoxItem));
             comboItem.Setters.Add(new Setter(Control.ForegroundProperty, ColorResource("ButtonText")));
             comboItem.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
             comboItem.Setters.Add(new Setter(Control.TemplateProperty, ItemTemplate(typeof(ComboBoxItem))));
             resources[typeof(ComboBoxItem)] = comboItem;
             var combo = new Style(typeof(ComboBox));
+            combo.Setters.Add(new Setter(Control.FontFamilyProperty, new DynamicResourceExtension(OperationalFontFamilyKey)));
             combo.Setters.Add(new Setter(Control.BackgroundProperty, ColorResource("Button")));
             combo.Setters.Add(new Setter(Control.ForegroundProperty, ColorResource("ButtonText")));
             combo.Setters.Add(new Setter(Control.BorderBrushProperty, ColorResource("Border")));
@@ -210,6 +225,22 @@ namespace Negotchi
             var comboTemplate = new ControlTemplate(typeof(ComboBox)) { VisualTree = grid };
             var editable = new Trigger { Property = ComboBox.IsEditableProperty, Value = true }; editable.Setters.Add(new Setter(UIElement.VisibilityProperty, Visibility.Visible, "PART_EditableTextBox")); editable.Setters.Add(new Setter(UIElement.VisibilityProperty, Visibility.Collapsed, "Selection")); comboTemplate.Triggers.Add(editable);
             combo.Setters.Add(new Setter(Control.TemplateProperty, comboTemplate)); resources[typeof(ComboBox)] = combo;
+            var button = new Style(typeof(Button));
+            button.Setters.Add(new Setter(Control.FontFamilyProperty, new DynamicResourceExtension(OperationalFontFamilyKey)));
+            button.Setters.Add(new Setter(Control.BackgroundProperty, ColorResource("Button")));
+            button.Setters.Add(new Setter(Control.ForegroundProperty, ColorResource("ButtonText")));
+            button.Setters.Add(new Setter(Control.BorderBrushProperty, ColorResource("Border")));
+            button.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(10, 5, 10, 5)));
+            button.Setters.Add(new Setter(Control.MinHeightProperty, 30.0));
+            button.Setters.Add(new Setter(Control.TemplateProperty, ButtonTemplate(typeof(Button)))); resources[typeof(Button)] = button;
+            var tree = new Style(typeof(TreeView));
+            tree.Setters.Add(new Setter(Control.FontFamilyProperty, new DynamicResourceExtension(OperationalFontFamilyKey)));
+            tree.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent)); tree.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0))); resources[typeof(TreeView)] = tree;
+            var treeItem = new Style(typeof(TreeViewItem)); treeItem.Setters.Add(new Setter(Control.FontFamilyProperty, new DynamicResourceExtension(OperationalFontFamilyKey))); treeItem.Setters.Add(new Setter(Control.ForegroundProperty, ColorResource("Text"))); treeItem.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(2, 4, 2, 4))); resources[typeof(TreeViewItem)] = treeItem;
+            var tabs = new Style(typeof(TabControl)); tabs.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent)); tabs.Setters.Add(new Setter(Control.BorderThicknessProperty, new Thickness(0))); resources[typeof(TabControl)] = tabs;
+            var tab = new Style(typeof(TabItem)); tab.Setters.Add(new Setter(Control.FontFamilyProperty, new DynamicResourceExtension(OperationalFontFamilyKey))); tab.Setters.Add(new Setter(Control.ForegroundProperty, ColorResource("ButtonText"))); tab.Setters.Add(new Setter(Control.BackgroundProperty, ColorResource("Button"))); tab.Setters.Add(new Setter(Control.BorderBrushProperty, ColorResource("Border"))); tab.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(10, 5, 10, 5))); resources[typeof(TabItem)] = tab;
+            var check = new Style(typeof(CheckBox)); check.Setters.Add(new Setter(Control.FontFamilyProperty, new DynamicResourceExtension(OperationalFontFamilyKey))); check.Setters.Add(new Setter(Control.ForegroundProperty, ColorResource("Text"))); resources[typeof(CheckBox)] = check;
+            var menuItem = new Style(typeof(MenuItem)); menuItem.Setters.Add(new Setter(Control.FontFamilyProperty, new DynamicResourceExtension(OperationalFontFamilyKey))); menuItem.Setters.Add(new Setter(Control.ForegroundProperty, ColorResource("Text"))); menuItem.Setters.Add(new Setter(Control.BackgroundProperty, ColorResource("Surface"))); resources[typeof(MenuItem)] = menuItem;
             var menu = new Style(typeof(ContextMenu)); menu.Setters.Add(new Setter(Control.BackgroundProperty, ColorResource("Surface"))); menu.Setters.Add(new Setter(Control.ForegroundProperty, ColorResource("Text"))); resources[typeof(ContextMenu)] = menu;
             var tooltip = new Style(typeof(ToolTip)); tooltip.Setters.Add(new Setter(Control.BackgroundProperty, ColorResource("Surface"))); tooltip.Setters.Add(new Setter(Control.ForegroundProperty, ColorResource("Text"))); tooltip.Setters.Add(new Setter(Control.BorderBrushProperty, ColorResource("Border"))); resources[typeof(ToolTip)] = tooltip;
         }
@@ -219,7 +250,8 @@ namespace Negotchi
             border.AppendChild(new FrameworkElementFactory(typeof(ContentPresenter)));
             var template = new ControlTemplate(type) { VisualTree = border };
             var selected = new Trigger { Property = type == typeof(ComboBoxItem) ? ComboBoxItem.IsHighlightedProperty : ListBoxItem.IsSelectedProperty, Value = true };
-            selected.Setters.Add(new Setter(Control.BackgroundProperty, ColorResource("SelectedButton"))); selected.Setters.Add(new Setter(Control.ForegroundProperty, ColorResource("SelectedButtonText"))); template.Triggers.Add(selected);
+            if (type == typeof(ListBoxItem)) { selected.Setters.Add(new Setter(Control.BackgroundProperty, ColorResource("Text"))); selected.Setters.Add(new Setter(Control.ForegroundProperty, ColorResource("Background"))); }
+            else { selected.Setters.Add(new Setter(Control.BackgroundProperty, ColorResource("SelectedButton"))); selected.Setters.Add(new Setter(Control.ForegroundProperty, ColorResource("SelectedButtonText"))); } template.Triggers.Add(selected);
             return template;
         }
         private static ControlTemplate ButtonTemplate(Type type)

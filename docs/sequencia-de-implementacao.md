@@ -11,12 +11,12 @@ Cada item só passa a concluído depois de implementação e validação do seu 
 | 3 | Permissões isoladas por conversa | Concluído: migração e persistência testadas |
 | 4 | Gerenciamento de MCP | Concluído: configuração global revisada; OAuth; origem gerenciada somente leitura |
 | 5 | Perfil e atividade de conta | Concluído: /account e clique no resumo da conta |
-| 6 | Anexos reais | Em andamento |
-| 7 | Explorador e busca de arquivos | Pendente |
-| 8 | Prévia de artefatos | Pendente |
-| 9 | Edição e anotações inline | Pendente |
-| 10 | Revisão visual de diffs | Pendente |
-| 11 | Terminal integrado | Pendente |
+| 6 | Anexos reais | Concluído: escolha, arrastar/soltar e colagem de imagem; prévia local de imagem, GIF e vídeo; texto e imagem enviados apenas no envio; vídeo referenciado por caminho |
+| 7 | Explorador e busca de arquivos | Concluído: árvore sob a pasta da conversa, busca por nome, prévia, abertura revisada no Windows e referência ao rascunho |
+| 8 | Prévia de artefatos | Concluído: prévia local somente leitura de texto, imagens, PDF, DOCX, XLSX e PPTX, com limites e mensagem para formatos sem suporte |
+| 9 | Edição e anotações inline | Concluído: editor de texto limitado ao contexto, anotação de seleção no rascunho, confirmação e política de sandbox no salvamento |
+| 10 | Revisão visual de diffs | Concluído: comparação HEAD/disco, navegação por trechos e comentários versionados enviados apenas ao rascunho |
+| 11 | Terminal integrado | Concluído: abas por conversa, execução revisada com sandbox, saída em streaming e interrupção de processos |
 | 12 | Navegador integrado | Pendente |
 | 13 | Mensagens enfileiradas e side chats | Pendente |
 | 14 | Execução paralela de conversas | Pendente |
@@ -31,4 +31,4 @@ Cada item só passa a concluído depois de implementação e validação do seu 
 | 23 | Predições no compositor | Pendente |
 | 24 | Atalhos, múltiplas janelas e navegação | Pendente |
 
-Validação da etapa 1–5: `.build-sequence-validation/test-results.json` (185 verificações) e `ui-smoke-report.json` (83 verificações). Escritas de configuração dos testes ficam em CODEX_HOME isolado; push somente em remoto temporário local. Nenhum servidor MCP foi adicionado à configuração real pelo agente.
+Validação das etapas 1–11: `.build-incomplete-validation/test-results.json` (205 verificações) e `ui-smoke-report.json` (87 verificações). Escritas de configuração dos testes ficam em CODEX_HOME isolado; push somente em remoto temporário local. Nenhum servidor MCP foi adicionado à configuração real pelo agente.

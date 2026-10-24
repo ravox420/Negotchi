@@ -66,7 +66,7 @@ namespace Negotchi
             Owner = owner; Title = "Revisão de alterações"; Width = 1100; Height = 740; MinWidth = 720; MinHeight = 480; WindowStartupLocation = WindowStartupLocation.CenterOwner; ShowInTaskbar = false; Background = Theme.Background; Foreground = Theme.Text;
             var root = new DockPanel { Margin = new Thickness(18) }; status = new TextBlock { Text = "Somente revisão: selecionar e comentar não aplica nem reverte alterações.", Foreground = Theme.Muted, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 10) }; DockPanel.SetDock(status, Dock.Top); root.Children.Add(status);
             var bottom = new StackPanel(); DockPanel.SetDock(bottom, Dock.Bottom); root.Children.Add(bottom);
-            notes = new ListBox { DisplayMemberPath = "Display", Height = 70, Background = Theme.Card, Foreground = Theme.Text, BorderBrush = Theme.Line, Margin = new Thickness(0, 8, 0, 8) }; bottom.Children.Add(notes);
+            notes = new ListBox { DisplayMemberPath = "Display", Height = 70, Foreground = Theme.Text, Margin = new Thickness(0, 8, 0, 8) }; bottom.Children.Add(notes);
             var buttons = new WrapPanel(); bottom.Children.Add(buttons);
             buttons.Children.Add(Theme.Button("Atualizar arquivos", delegate { try { files.ItemsSource = GitReview.Files(rootPath); } catch (Exception error) { status.Text = error.Message; } }, false));
             buttons.Children.Add(Theme.Button("Trecho anterior", delegate { if (hunks.SelectedIndex > 0) hunks.SelectedIndex--; }, false)); buttons.Children.Add(Theme.Button("Próximo trecho", delegate { if (hunks.SelectedIndex + 1 < hunks.Items.Count) hunks.SelectedIndex++; }, false));
@@ -87,8 +87,8 @@ namespace Negotchi
             }, true));
             buttons.Children.Add(Theme.Button("Fechar", delegate { Close(); }, false));
             var content = new Grid(); content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) }); content.ColumnDefinitions.Add(new ColumnDefinition());
-            var sidebar = new DockPanel(); hunks = new ListBox { DisplayMemberPath = "Display", MaxHeight = 150, Background = Theme.Card, Foreground = Theme.Text, BorderBrush = Theme.Line }; DockPanel.SetDock(hunks, Dock.Bottom); sidebar.Children.Add(hunks);
-            files = new ListBox { DisplayMemberPath = "Display", Background = Theme.Card, Foreground = Theme.Text, BorderBrush = Theme.Line }; sidebar.Children.Add(files); content.Children.Add(sidebar);
+            var sidebar = new DockPanel(); hunks = new ListBox { DisplayMemberPath = "Display", MaxHeight = 150, Foreground = Theme.Text }; DockPanel.SetDock(hunks, Dock.Bottom); sidebar.Children.Add(hunks);
+            files = new ListBox { DisplayMemberPath = "Display", Foreground = Theme.Text }; sidebar.Children.Add(files); content.Children.Add(sidebar);
             var comparison = new Grid { Margin = new Thickness(10, 0, 0, 0) }; comparison.ColumnDefinitions.Add(new ColumnDefinition()); comparison.ColumnDefinitions.Add(new ColumnDefinition());
             before = TextPane(); after = TextPane(); before.ToolTip = "Versão do último commit (HEAD)"; after.ToolTip = "Versão atual no disco"; comparison.Children.Add(before); Grid.SetColumn(after, 1); comparison.Children.Add(after); Grid.SetColumn(comparison, 1); content.Children.Add(comparison); root.Children.Add(content);
             files.SelectionChanged += async delegate { await ReadSelected(); };

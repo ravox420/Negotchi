@@ -29,12 +29,20 @@ namespace Negotchi
                 AddSystem("Comando nao disponivel nesta interface: " + invocation.Name + ". Use /help para ver os comandos suportados."); Save(); return;
             }
             string name = invocation.Command.Name;
-            if (invocation.Arguments.Length > 0 && name != "/model" && name != "/skills" && name != "/create-pet")
+            if (invocation.Arguments.Length > 0 && name != "/model" && name != "/skills" && name != "/create-pet" && name != "/monitor")
             {
                 AddSystem("Este comando nao recebe argumentos. Use " + name + "."); Save(); return;
             }
             if (name == "/new") { NewChat(); return; }
             if (name == "/pets") { OpenPetPicker(); return; }
+            if (name == "/monitor")
+            {
+                string[] parts = invocation.Arguments.Split(new[] { '|' }, 2); int pid;
+                if (parts.Length != 2 || !int.TryParse(parts[0].Trim(), out pid) || string.IsNullOrWhiteSpace(parts[1])) { AddSystem("Use /monitor PID | lembrete. Exemplo: /monitor 8420 | Fazer café."); Save(); return; }
+                try { var process = System.Diagnostics.Process.GetProcessById(pid); state.ProcessReminders.Add(new ProcessReminder { ProcessId = pid, ProcessName = process.ProcessName, Message = parts[1].Trim() }); Save(); Status("Monitorando " + process.ProcessName + " (PID " + pid + ").", "waiting"); }
+                catch (ArgumentException) { AddSystem("Não encontrei um processo ativo com esse PID."); Save(); }
+                return;
+            }
             if (name == "/import-pet") { ImportPet(); return; }
             if (name == "/create-pet") { CreatePet(invocation.Arguments); return; }
             if (name == "/login") { Connect(); return; }
@@ -53,7 +61,12 @@ namespace Negotchi
                 Status("Consultando o Codex...", "waiting");
                 await agent.StartAsync(state.Folder);
                 var commands = new CodexCommands(agent);
-                if (name == "/terminal") { new TerminalWindow(chat, agent, state.Folder, state.Sandbox).ShowDialog(); feedback = "Terminais encerrados."; }
+                if (name == "/terminal")
+                {
+                    if (state.Sandbox != "danger-full-access") throw new InvalidOperationException("O Windows Terminal abre um processo local e exige Acesso completo. Use /permissions para habilitar nesta conversa.");
+                    if (!DesktopActions.Review(chat, "Abrir Windows Terminal", "Perfil: pwsh (perfil do usuário carregado)\nPasta: " + state.Folder + "\n\nO terminal será aberto fora do sandbox do App Server.")) { feedback = "Abertura do terminal cancelada."; return; }
+                    DesktopActions.LaunchCommand("wt.exe", "-d " + QuoteTerminal(state.Folder) + " pwsh.exe", state.Folder); feedback = "Windows Terminal aberto com o perfil do pwsh.";
+                }
                 else if (name == "/model")
                 {
                     var modelsTask = commands.Models(); var configTask = commands.ReadConfig(state.Folder); await Task.WhenAll(modelsTask, configTask);
@@ -139,6 +152,8 @@ namespace Negotchi
             catch (Exception error) { feedback = error.Message; animation = "failed"; AddSystem(error.Message); }
             finally { commandBusy = false; chat.SetCommandBusy(false); Status(feedback, animation); Save(); }
         }
+
+        private static string QuoteTerminal(string value) { return "\"" + (value ?? "").Replace("\"", "\\\"") + "\""; }
 
     }
 }

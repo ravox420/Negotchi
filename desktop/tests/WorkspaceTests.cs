@@ -21,6 +21,13 @@ namespace Negotchi
             Check(input.Count == 2 && Json.Text((System.Collections.Generic.Dictionary<string, object>)input[1], "text").Contains("Conteúdo atualizado 😀"), "le o conteudo do anexo somente na preparacao do envio");
             File.Delete(textFile); bool missing = false; try { AttachmentInput.Build("", null, new[] { attachment }); } catch (FileNotFoundException) { missing = true; }
             Check(missing, "anexo removido do disco nao e enviado como se tivesse sido lido");
+            string gif = Path.Combine(directory, "animacao.gif"); File.WriteAllBytes(gif, new byte[] { 71, 73, 70, 56, 57, 97 });
+            string video = Path.Combine(directory, "video.mp4"); File.WriteAllBytes(video, new byte[] { 0, 0, 0, 0 });
+            Check(AttachmentInput.Inspect(gif).Kind == "gif" && AttachmentInput.Inspect(video).Kind == "video", "classifica GIF e vídeo como mídia reproduzível localmente");
+            var videoInput = AttachmentInput.Build("Veja o vídeo", null, new[] { AttachmentInput.Inspect(video) });
+            Check(videoInput.Count == 2 && Json.Text((System.Collections.Generic.Dictionary<string, object>)videoInput[1], "text").Contains("vídeo permanece local"), "vídeo preserva reprodução local e envia somente a referência ao agente");
+            string image = Path.Combine(directory, "prévia.png"); File.WriteAllBytes(image, Convert.FromBase64String("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLWMwAAAABJRU5ErkJggg=="));
+            Check(MediaAttachmentView.Create(AttachmentInput.Inspect(image), 210) != null && MediaAttachmentView.Create(AttachmentInput.Inspect(video), 210) != null, "cria prévia visual para imagem e controles locais para vídeo antes do envio");
             File.WriteAllText(textFile, "Conteúdo da prévia", new UTF8Encoding(false));
             Check(ArtifactText.Read(textFile) == "Conteúdo da prévia", "previa textual preserva UTF-8");
             var editable = new EditableText(textFile); bool denied = false; try { editable.Save("não gravar", "read-only"); } catch (UnauthorizedAccessException) { denied = true; }
@@ -36,6 +43,16 @@ namespace Negotchi
             string docx = Path.Combine(directory, "documento.docx");
             using (var zip = ZipFile.Open(docx, ZipArchiveMode.Create)) using (var writer = new StreamWriter(zip.CreateEntry("word/document.xml").Open(), Encoding.UTF8)) writer.Write("<w:document xmlns:w='http://schemas.openxmlformats.org/wordprocessingml/2006/main'><w:body><w:p><w:r><w:t>Ação no documento</w:t></w:r></w:p></w:body></w:document>");
             Check(ArtifactText.Read(docx).Contains("Ação no documento"), "previa de DOCX extrai texto sem executar conteudo");
+            string xlsx = Path.Combine(directory, "planilha.xlsx");
+            using (var zip = ZipFile.Open(xlsx, ZipArchiveMode.Create))
+            {
+                using (var writer = new StreamWriter(zip.CreateEntry("xl/sharedStrings.xml").Open(), Encoding.UTF8)) writer.Write("<sst xmlns='http://schemas.openxmlformats.org/spreadsheetml/2006/main'><si><t>Receita</t></si></sst>");
+                using (var writer = new StreamWriter(zip.CreateEntry("xl/worksheets/sheet1.xml").Open(), Encoding.UTF8)) writer.Write("<worksheet xmlns='http://schemas.openxmlformats.org/spreadsheetml/2006/main'><sheetData><row r='1'><c r='A1' t='s'><v>0</v></c><c r='B1'><v>42</v></c></row></sheetData></worksheet>");
+            }
+            Check(ArtifactText.Read(xlsx).Contains("A1: Receita") && ArtifactText.Read(xlsx).Contains("B1: 42"), "previa de XLSX mostra valores armazenados sem recalcular formulas");
+            string pptx = Path.Combine(directory, "apresentacao.pptx");
+            using (var zip = ZipFile.Open(pptx, ZipArchiveMode.Create)) using (var writer = new StreamWriter(zip.CreateEntry("ppt/slides/slide1.xml").Open(), Encoding.UTF8)) writer.Write("<p:sld xmlns:p='http://schemas.openxmlformats.org/presentationml/2006/main' xmlns:a='http://schemas.openxmlformats.org/drawingml/2006/main'><p:cSld><p:spTree><a:p><a:r><a:t>Resumo da apresentação</a:t></a:r></a:p></p:spTree></p:cSld></p:sld>");
+            Check(ArtifactText.Read(pptx).Contains("SLIDE 1") && ArtifactText.Read(pptx).Contains("Resumo da apresentação"), "previa de PPTX extrai texto sem executar conteudo");
             string pdfFile = Path.Combine(directory, "preview.pdf");
             var pdf = new StringBuilder("%PDF-1.4\n"); var offsets = new System.Collections.Generic.List<int> { 0 };
             string[] objects = { "<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>", "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 300 200] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>", "<< /Length 42 >>\nstream\nBT /F1 16 Tf 30 100 Td (Negotchi) Tj ET\nendstream", "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>" };

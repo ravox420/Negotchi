@@ -82,7 +82,7 @@ namespace Negotchi
             buttons.Children.Add(Theme.Button("Cancelar", delegate { window.Close(); }, false));
             var search = new TextBox { Text = filter, MinHeight = 32, Padding = new Thickness(8), Background = Theme.Card, Foreground = Theme.Text, CaretBrush = Theme.Accent, BorderBrush = Theme.Line, Margin = new Thickness(0, 0, 0, 12), ToolTip = "Buscar skill por nome ou descricao" }; DockPanel.SetDock(search, Dock.Top); layout.Children.Add(search);
             var details = new TextBlock { Text = skills.Count == 0 ? "Nenhuma skill disponivel nesta pasta." : "Selecione uma skill para ver os detalhes.", TextWrapping = TextWrapping.Wrap, Foreground = Theme.Muted, FontSize = 12, MaxHeight = 125, Margin = new Thickness(0, 12, 0, 0) }; DockPanel.SetDock(details, Dock.Bottom); layout.Children.Add(details);
-            var list = new ListBox { Background = Theme.Card, Foreground = Theme.Text, BorderBrush = Theme.Line, Padding = new Thickness(6), HorizontalContentAlignment = HorizontalAlignment.Stretch };
+            var list = new ListBox { Foreground = Theme.Text, Padding = new Thickness(2), HorizontalContentAlignment = HorizontalAlignment.Stretch };
             var use = Theme.Button("Usar skill", delegate { selection = list.SelectedItem as SkillChoice; if (selection != null && selection.Enabled) window.DialogResult = true; }, true); use.IsEnabled = false; buttons.Children.Add(use);
             Action update = delegate {
                 string query = search.Text.Trim();

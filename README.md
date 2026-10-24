@@ -39,6 +39,7 @@ O aplicativo procura o `codex.exe` no PATH e na instalação npm padrão do usu�
 | Abrir documento manualmente | **Abrir arquivo**, mesmo sem login |
 | Referenciar um arquivo na pergunta | **Anexar caminho**; adiciona uma referência local, sem fazer upload automático |
 | Trocar contexto | **Pasta de trabalho**; inicia uma nova conversa nessa pasta |
+| Iniciar tutor de estudos | **Estudos**; abre uma conversa nova em `C:\Users\User ST\Desktop\learn_project`, prepara `learn-project-tutor` e solicita o menu de estudos |
 | Histórico de conversas | **Conversas**; cria, abre ou renomeia conversas salvas |
 | Revisar Git | **Git**; mostra branch, grafo de nós do histórico, arquivos alterados, diff e ações locais |
 | Recuperar o pet fora da tela | Ícone perto do relógio → **Trazer pet para a tela** |
@@ -82,11 +83,19 @@ Cada cor abre uma roda seletora de matiz e saturação, com controle de luminosi
 
 O visual é WPF nativo, construído em C#. `Theme.cs` reúne a paleta, os estilos e os recursos de tipografia; `AppearanceWindow.cs` edita as preferências; `ColorPickerWindow.cs` implementa a roda seletora. Os componentes usam cores por função e tamanhos proporcionais à fonte base.
 
+As barras de rolagem são estreitas e seguem as cores do aplicativo, com destaque ao passar o mouse e arrastar. A barra de título das janelas acompanha o tema escuro/claro; no Windows 11, fundo, texto e borda também acompanham a paleta. O alto contraste do Windows tem prioridade. Essas mudanças ficam restritas ao Negotchi.
+
 ### Anexar caminho e Pasta de trabalho
 
-**Anexar caminho** escolhe um ou mais arquivos e insere `Arquivo: "caminho"` no rascunho. Não muda a pasta de trabalho, não inicia outra conversa e não envia o arquivo automaticamente. O agente recebe a referência quando a mensagem é enviada e precisa ler o arquivo para usar seu conteúdo.
+**Anexar caminho** escolhe um ou mais arquivos e insere `Arquivo: "caminho"` no rascunho. Não muda a pasta de trabalho, não inicia outra conversa e não envia o arquivo automaticamente. O agente recebe a referência quando a mensagem é enviada e precisa ler o arquivo para usar seu conteúdo. Pelo botão **Anexar**, imagens, GIFs e vídeos locais recebem pré-visualização antes do envio e aparecem diretamente na mensagem: imagens e GIFs são enviados como entrada visual; vídeos são reproduzidos localmente no chat e apenas o caminho local é informado ao agente.
 
 **Pasta de trabalho** escolhe o diretório em que o agente executa suas operações e resolve caminhos relativos. Ao trocar essa pasta, o aplicativo cria uma nova conversa nesse diretório e preserva a anterior no histórico.
+
+No explorador (`/files`), **Editar / anotar** permite editar textos compatíveis de até 2 MB. Salvar depende da política de permissões da conversa e de confirmação; anotar uma seleção apenas prepara o contexto no rascunho, sem alterar ou enviar o arquivo.
+
+### Tutor de estudos
+
+O botão **Estudos** abre uma conversa nova na pasta `C:\Users\User ST\Desktop\learn_project`, localiza a skill `learn-project-tutor` disponível ao Codex e envia o pedido inicial do menu. O tutor apresenta as seções de atividades, conteúdo programático, progresso, atividade atual, seções de aprendizado, projetos e desafios e recursos. Abrir esse chat não altera o progresso; a skill só registra avanço após a validação da atividade. Se a pasta ou a skill não estiver disponível, o Negotchi informa o motivo e preserva as outras conversas.
 
 ### Histórico de conversas
 
@@ -107,6 +116,9 @@ Clique em **Comandos /** ao lado do campo de mensagem ou comece a digitar `/`. A
 | `/memories` | Abre as opções globais de memória do Codex e a permissão desta conversa para contribuir com memórias. |
 | `/mcp` | Gerencia servidores MCP globais, autenticação e ferramentas reportadas. |
 | `/account` | Abre perfil, limites e atividade disponível; também acessível clicando no resumo da conta. |
+| `/files` | Abre a árvore e a busca de arquivos limitadas à pasta da conversa. |
+| `/diff` | Compara os arquivos alterados, permite comentar trechos e prepara o contexto no rascunho. |
+| `/terminal` | Abre abas PowerShell vinculadas à conversa, com confirmação e política de sandbox visíveis. |
 | `/new` | Inicia uma nova conversa na pasta atual. |
 | `/login` | Abre o fluxo de conexão da conta. |
 | `/pets` | Abre a aba de seleção de personagens. |
@@ -143,7 +155,7 @@ Exemplos de pedidos:
 - “Abra `C:\Users\MeuUsuario\Documents\relatorio.pdf`.”
 - “Leia este arquivo e resuma os pontos principais.”
 
-A abertura usa o aplicativo padrão do Windows. Ler e resumir depende das ferramentas e dos formatos disponíveis no Codex; o Negotchi não inclui um leitor universal de PDF, Word ou planilhas.
+A abertura usa o aplicativo padrão do Windows. Pelo explorador, o Negotchi também oferece prévia local somente leitura para texto, imagens, PDF, DOCX, XLSX e PPTX; documentos Office aparecem como conteúdo textual e não como uma reprodução completa de layout, fórmulas, gráficos ou animações.
 
 ## Arquivos e permissões
 

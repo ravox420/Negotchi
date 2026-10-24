@@ -245,7 +245,7 @@ namespace Negotchi
             Check(SlashCommands.TryParse(" /MODEL model-a medium ", out invocation) && invocation.Command.Name == "/model" && invocation.Arguments == "model-a medium", "separa comando e argumentos sem interpretacao de shell");
             Check(SlashCommands.TryParse("/status", out invocation) && invocation.Command.Name == "/usage", "resolve alias de status");
             Check(SlashCommands.TryParse("/nao-existe", out invocation) && invocation.Command == null, "reconhece comando desconhecido sem trata-lo como pergunta");
-            Check(SlashCommands.Match("/mo").Length == 1 && SlashCommands.Match("/reason")[0].Name == "/model", "filtra sugestoes por nome e alias");
+            Check(SlashCommands.Match("/mo").Any(command => command.Name == "/model") && SlashCommands.Match("/reason")[0].Name == "/model", "filtra sugestoes por nome e alias");
             var disabled = new SkillChoice { Name = "teste", Path = "skill.md", Enabled = false };
             bool rejected = false; try { CodexCommands.TurnInput("teste", disabled); } catch (InvalidOperationException) { rejected = true; }
             Check(rejected, "nao anexa skill desativada");
@@ -421,6 +421,7 @@ namespace Negotchi
         }
         private static void TestAppearanceViews(ChatWindow chat, PetWindow pet, TextBox composer)
         {
+            TestScrollStyles();
             chat.ShowConversation();
             var wheel = new ColorWheel { SelectedColor = Color.FromRgb(64, 128, 192) };
             Check(wheel.SelectedColor == Color.FromRgb(64, 128, 192), "roda seletora preserva a cor inicial ao converter RGB e HSV");
@@ -638,6 +639,7 @@ namespace Negotchi
                     {
                         timer.Stop();
                         Check(chat.IsVisible, "abre a janela real de conversa");
+                        TestWindowChrome(chat, true);
                         var accountAgent = (CodexClient)typeof(NegotchiApp).GetField("agent", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(application);
                         var accountEmail = (TextBlock)typeof(ChatWindow).GetField("accountEmail", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(chat);
                         var accountLimits = (TextBlock)typeof(ChatWindow).GetField("accountLimits", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(chat);
@@ -718,6 +720,10 @@ namespace Negotchi
                         chat.ClearSkill(); Check(composer.Text == "Rascunho preservado", "remover skill tambem remove a mencao automatica");
                         await CommandDialogSmoke(application, "/mcp", "Servidores MCP", window => { FindButton(window, "Fechar").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); });
                         await CommandDialogSmoke(application, "/account", "Perfil e atividade", window => { Render((FrameworkElement)window.Content, 580, 500, Path.Combine(directory, "account-preview.png")); FindButton(window, "Fechar").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); });
+                        await CommandDialogSmoke(application, "/files", "Arquivos da conversa", window => {
+                            Check(Descendants<TreeView>(window).Single().Items.Count == 1 && Descendants<TextBox>(window).Any(box => box.ToolTip as string == "Buscar por nome na pasta da conversa") && FindButton(window, "Prévia") != null && FindButton(window, "Referenciar") != null, "abre o explorador limitado ao contexto da conversa");
+                            FindButton(window, "Fechar").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        });
                         var agent = (CodexClient)typeof(NegotchiApp).GetField("agent", BindingFlags.NonPublic | BindingFlags.Instance).GetValue(application);
                         var captured = await agent.RequestAsync("test/state", null);
                         Check(!Json.Items(captured, "calls").Contains("turn/start"), "comandos de controle nao viram turnos de perguntas ao modelo");
@@ -750,7 +756,8 @@ namespace Negotchi
                         });
                         var afterAppearance = initialStore.Load();
                         Check(afterAppearance.Appearance.Mode == "light" && afterAppearance.Appearance.FontFamily == "Consolas" && afterAppearance.Appearance.FontSize == 16 && afterAppearance.Appearance.Colors["Background"] == "#EAF3F8", "salva a aparencia aplicada pelo menu e pela roda seletora");
-                        Check(((SolidColorBrush)chat.Background).Color == (Color)ColorConverter.ConvertFromString("#EAF3F8") && composer.FontFamily.Source == Theme.FontWithFallback("Consolas").Source, "aplica tema e fonte imediatamente na janela existente");
+                        TestWindowChrome(chat, false);
+                        Check(((SolidColorBrush)chat.Background).Color == (Color)ColorConverter.ConvertFromString("#EAF3F8") && composer.FontFamily.Source == Theme.FontWithFallback("Cascadia Mono, Consolas").Source, "aplica tema mantendo a fonte operacional no compositor");
                         Check(afterAppearance.ThreadId == beforeAppearance.ThreadId && afterAppearance.Messages.Count == beforeAppearance.Messages.Count && afterAppearance.Folder == beforeAppearance.Folder && composer.Text == "Rascunho preservado", "menu de aparencia preserva conversa, pasta e rascunho");
                         DialogSmoke(application, () => FindButton((FrameworkElement)chat.Content, "Aparencia").RaiseEvent(new RoutedEventArgs(Button.ClickEvent)), "Aparencia", window => {
                             FindButton(window, "Restaurar padrao").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
