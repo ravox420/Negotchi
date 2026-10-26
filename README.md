@@ -71,6 +71,12 @@ O controlador acompanha os eventos públicos do Codex por conversa, turno e item
 
 Arrastar assume a corrida na direção do movimento e, ao soltar, restaura o estado atual da conversa. Pets antigos continuam compatíveis: na ausência das faixas novas, pensamento usa **waiting** e resposta usa **review**. O controlador não depende do conteúdo privado de raciocínio nem de palavras-chave no texto da resposta.
 
+### Dança com Spotify
+
+Pets com a animação **dancing**, como o BMO, dançam automaticamente enquanto o aplicativo Spotify está reproduzindo. O Negotchi consulta as sessões de mídia do Windows aproximadamente a cada segundo, sem login adicional nem acesso à conta do Spotify. Pausar, parar ou fechar a sessão de reprodução restaura o repouso.
+
+As animações da conversa, o arraste e as reações pontuais têm prioridade. Ao terminarem, a dança retorna se o Spotify continuar tocando. Pets sem `dancing` mantêm o comportamento anterior. A detecção usa o Spotify para desktop, incluindo a versão da Microsoft Store; abas de navegador e outros players não acionam a dança. Esse recurso requer Windows 10 versão 1809 ou mais recente e o serviço de sessões de mídia disponível; uma falha na consulta mantém o restante do aplicativo funcionando.
+
 ## Aparência
 
 Abra **Aparência** no cabeçalho do chat. Escolha um tema base **Escuro** ou **Claro**, a fonte instalada e o tamanho base, de 10 a 22. A hierarquia entre títulos, mensagens e legendas é preservada.
@@ -192,6 +198,7 @@ O build usa o compilador do .NET Framework que acompanha o Windows, sem restaura
 | `desktop/src/ConversationPicker.cs` | Seletor de conversas inspirado no CLI resume --all |
 | `desktop/src/PetWindow.cs` | Janela transparente, animações, arraste e menu |
 | `desktop/src/PetActivity.cs` | Estados visuais a partir dos eventos públicos do agente |
+| `desktop/src/SpotifyPlaybackMonitor.cs` | Consulta local do play do Spotify para a animação de dança |
 | `desktop/src/PetPackages.cs` | Validação e importação de pacotes locais |
 | `desktop/src/AppPetCreation.cs` | Skill de criação, registro e atualização do catálogo |
 | `desktop/src/ChatWindow.cs` | Interface nativa do chat |

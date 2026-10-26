@@ -1,4 +1,4 @@
-param([switch]$Run, [switch]$Test, [string]$Destination)
+param([switch]$Run, [switch]$Test, [string]$Destination, [string[]]$TestRunArguments)
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $outputDirectory = if ($Destination) { [System.IO.Path]::GetFullPath($Destination) } else { Join-Path $projectRoot '.build' }
@@ -18,7 +18,7 @@ foreach ($reference in @('PresentationCore.dll', 'PresentationFramework.dll', 'W
 $runtimeFacade = Get-ChildItem -LiteralPath (Join-Path $env:WINDIR 'Microsoft.NET\assembly\GAC_MSIL\System.Runtime') -Filter 'System.Runtime.dll' -Recurse | Select-Object -First 1
 if (-not $runtimeFacade) { throw 'System.Runtime do .NET Framework nao encontrado.' }
 $arguments += '/reference:' + $runtimeFacade.FullName
-foreach ($metadata in @('Windows.Foundation.winmd', 'Windows.Storage.winmd', 'Windows.Data.winmd', 'Windows.Graphics.winmd')) {
+foreach ($metadata in @('Windows.Foundation.winmd', 'Windows.Storage.winmd', 'Windows.Data.winmd', 'Windows.Graphics.winmd', 'Windows.Media.winmd')) {
     $arguments += '/reference:' + (Join-Path $env:WINDIR ('System32\WinMetadata\' + $metadata))
 }
 foreach ($petDirectory in @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'pets') -Directory | Sort-Object Name)) {
@@ -41,7 +41,8 @@ if ($Test) {
     $testArguments += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tests') -Filter '*.cs' | ForEach-Object { $_.FullName })
     & $compiler @testArguments
     if ($LASTEXITCODE -ne 0) { throw 'A compilacao dos testes falhou.' }
-    & (Join-Path $outputDirectory 'Negotchi.Tests.exe') $outputDirectory
+    if ($TestRunArguments) { & (Join-Path $outputDirectory 'Negotchi.Tests.exe') @TestRunArguments }
+    else { & (Join-Path $outputDirectory 'Negotchi.Tests.exe') $outputDirectory }
     if ($LASTEXITCODE -ne 0) { throw 'Os testes do Negotchi falharam.' }
 }
 if ($Run) { Start-Process -FilePath (Join-Path $outputDirectory 'Negotchi.exe') -WindowStyle Normal }

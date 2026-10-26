@@ -1,0 +1,170 @@
+{
+  "idle": {
+    "frames": 8,
+    "durationsMs": [
+      160,
+      160,
+      160,
+      160,
+      160,
+      160,
+      160,
+      160
+    ],
+    "loop": 0
+  },
+  "running-right": {
+    "frames": 8,
+    "durationsMs": [
+      120,
+      120,
+      120,
+      120,
+      120,
+      120,
+      120,
+      120
+    ],
+    "loop": 0
+  },
+  "running-left": {
+    "frames": 8,
+    "durationsMs": [
+      120,
+      120,
+      120,
+      120,
+      120,
+      120,
+      120,
+      120
+    ],
+    "loop": 0
+  },
+  "waving": {
+    "frames": 8,
+    "durationsMs": [
+      160,
+      160,
+      160,
+      160,
+      160,
+      160,
+      160,
+      160
+    ],
+    "loop": null
+  },
+  "jumping": {
+    "frames": 8,
+    "durationsMs": [
+      120,
+      120,
+      120,
+      120,
+      120,
+      120,
+      120,
+      120
+    ],
+    "loop": null
+  },
+  "failed": {
+    "frames": 8,
+    "durationsMs": [
+      160,
+      160,
+      160,
+      160,
+      160,
+      160,
+      160,
+      160
+    ],
+    "loop": null
+  },
+  "waiting": {
+    "frames": 8,
+    "durationsMs": [
+      160,
+      160,
+      160,
+      160,
+      160,
+      160,
+      160,
+      160
+    ],
+    "loop": 0
+  },
+  "running": {
+    "frames": 8,
+    "durationsMs": [
+      120,
+      120,
+      120,
+      120,
+      120,
+      120,
+      120,
+      120
+    ],
+    "loop": 0
+  },
+  "review": {
+    "frames": 8,
+    "durationsMs": [
+      160,
+      160,
+      160,
+      160,
+      160,
+      160,
+      160,
+      160
+    ],
+    "loop": 0
+  },
+  "thinking": {
+    "frames": 8,
+    "durationsMs": [
+      160,
+      160,
+      160,
+      160,
+      160,
+      160,
+      160,
+      160
+    ],
+    "loop": 0
+  },
+  "responding": {
+    "frames": 8,
+    "durationsMs": [
+      120,
+      120,
+      120,
+      120,
+      120,
+      120,
+      120,
+      120
+    ],
+    "loop": 0
+  },
+  "dancing": {
+    "frames": 8,
+    "durationsMs": [
+      160,
+      160,
+      160,
+      160,
+      160,
+      160,
+      160,
+      160
+    ],
+    "loop": 0
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "status": "approved_with_notes",
+  "method": "Inspecao visual do contact sheet do atlas e dos oito quadros decodificados de cada um dos doze GIFs; previa individual da danca com view_image.",
+  "identity": "BMO reconhecivel em estilo cartoon, com corpo verde-agua, tela clara, membros finos e controles assimetricos preservados.",
+  "framing": "Mãos e pes completos, margem transparente e apoio consistente; o salto preserva deslocamento vertical.",
+  "animation": "Poses articuladas distintas em todos os estados. Aceno usa o mesmo braco; corridas esquerda/direita foram geradas separadamente. Pensamento, espera, trabalho, revisao e resposta sao distinguiveis.",
+  "dancing": "Oito poses de danca com inclinacao do tronco, flexao dos joelhos, passos e gestos dos bracos; sequencia final aproxima a primeira pose.",
+  "timing": "12 GIFs decodificados, oito quadros por GIF e duracoes verificadas. Waving, jumping e failed nao declaram loop; dancing declara loop.",
+  "limitations": [
+    "Pequenas variacoes de traco e perspectiva entre desenhos gerados.",
+    "A reproducao continua nao foi observada em navegador ou no desktop: nenhum navegador estava disponivel nesta sessao. A avaliacao do movimento foi feita pela sequencia completa dos quadros."
+  ],
+  "import": "Nao instalado ou ativado. Ferramenta negotchi_import_pet indisponivel; pet.json pronto para /import-pet.",
+  "spotify": "Integracao futura; nenhuma alteracao no controlador ou no Spotify."
+}

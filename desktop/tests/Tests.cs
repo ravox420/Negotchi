@@ -22,13 +22,20 @@ namespace Negotchi
         {
             if (args.Length > 0 && args[0] == "app-server") return FakeServer();
             if (args.Length > 0 && args[0] == "--history-audit") return HistoryAudit().GetAwaiter().GetResult();
+            if (args.Length > 0 && args[0] == "--spotify-status") return SpotifyStatus().GetAwaiter().GetResult();
+            if (args.Length > 0 && args[0] == "--spotify-test")
+            {
+                RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
+                try { TestSpotifyPlayback().GetAwaiter().GetResult(); Console.WriteLine("PASS: " + assertions + " verificacoes de Spotify e animacoes."); return 0; }
+                catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+            }
             if (args.Length > 0 && args[0] == "--ui-smoke") return UiSmoke(Path.GetFullPath(args[1]));
             if (args.Length > 0 && args[0] == "--pet-ui-smoke") return PetCreationUiSmoke(Path.GetFullPath(args[1]));
             output = Path.GetFullPath(args.Length > 0 ? args[0] : ".build");
             Directory.CreateDirectory(output);
             try
             {
-                TestAssets(); TestCatalog(); TestFiles(); TestState(); TestPosition(); TestSlashCommands(); TestNormalization(); TestGitGraph(); TestPetCreation(); TestWorkspace().GetAwaiter().GetResult(); TestProtocol().GetAwaiter().GetResult(); TestCommandProtocol().GetAwaiter().GetResult(); TestNativeProtocol().GetAwaiter().GetResult(); TestViews();
+                TestAssets(); TestCatalog(); TestFiles(); TestState(); TestPosition(); TestSlashCommands(); TestNormalization(); TestGitGraph(); TestPetCreation(); TestSpotifyPlayback().GetAwaiter().GetResult(); TestWorkspace().GetAwaiter().GetResult(); TestProtocol().GetAwaiter().GetResult(); TestCommandProtocol().GetAwaiter().GetResult(); TestNativeProtocol().GetAwaiter().GetResult(); TestViews();
                 File.WriteAllText(Path.Combine(output, "test-results.json"), Json.Encode(Json.Map("passed", assertions, "failed", 0, "nativeProtocol", true, "liveModelTested", false)), Encoding.UTF8);
                 Console.WriteLine("PASS: " + assertions + " verificacoes. Previews: .build/chat-preview.png e .build/pet-preview.png");
                 return 0;

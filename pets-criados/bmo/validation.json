@@ -1,0 +1,56 @@
+{
+  "valid": true,
+  "id": "bmo",
+  "states": {
+    "idle": {
+      "frames": 8,
+      "uniqueFrames": 8
+    },
+    "running-right": {
+      "frames": 8,
+      "uniqueFrames": 8
+    },
+    "running-left": {
+      "frames": 8,
+      "uniqueFrames": 8
+    },
+    "waving": {
+      "frames": 8,
+      "uniqueFrames": 8
+    },
+    "jumping": {
+      "frames": 8,
+      "uniqueFrames": 8
+    },
+    "failed": {
+      "frames": 8,
+      "uniqueFrames": 8
+    },
+    "waiting": {
+      "frames": 8,
+      "uniqueFrames": 8
+    },
+    "running": {
+      "frames": 8,
+      "uniqueFrames": 8
+    },
+    "review": {
+      "frames": 8,
+      "uniqueFrames": 8
+    },
+    "thinking": {
+      "frames": 8,
+      "uniqueFrames": 8
+    },
+    "responding": {
+      "frames": 8,
+      "uniqueFrames": 8
+    },
+    "dancing": {
+      "frames": 8,
+      "uniqueFrames": 8
+    }
+  },
+  "visualReview": "required",
+  "totalFrames": 96
+}

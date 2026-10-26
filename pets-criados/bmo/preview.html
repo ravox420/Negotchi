@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="pt-BR">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>BMO - previa das animacoes</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#171d23;color:#edf5f4;font:16px system-ui,sans-serif}main{max-width:1100px;margin:auto;padding:32px}h1{margin:0;font-size:32px}p{color:#b4c9c6;line-height:1.6}.hero{display:flex;gap:32px;align-items:center;flex-wrap:wrap;margin:24px 0;padding:24px;border:1px solid #38524f;border-radius:16px;background:#202a32}canvas{width:384px;height:416px;background:#30343a;border-radius:12px;max-width:100%;object-fit:contain}.controls{flex:1;min-width:240px}select,button{font:inherit;background:#284e48;border:1px solid #6eb5a8;color:white;border-radius:8px;padding:10px;margin:4px 4px 12px 0}label{display:block;margin:10px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:16px}.card{margin:0;padding:12px;background:#30343a;border-radius:12px}.card img{width:192px;height:208px;max-width:100%;object-fit:contain;display:block;margin:auto}.card figcaption{padding:8px;color:#cbe6df;text-align:center}a{color:#8ce5c9}code{color:#8ce5c9}small{color:#b4c9c6}
+</style>
+<main>
+<h1>BMO</h1>
+<p>12 animacoes, 96 quadros. A dancinha esta no estado <code>dancing</code>. No Negotchi ela acompanha o play do aplicativo Spotify. Esta previa local permite inspecionar os quadros manualmente.</p>
+<section class="hero">
+<canvas id="pet" width="192" height="208" aria-label="Previa animada do BMO"></canvas>
+<div class="controls">
+<h2>Inspecionar movimento</h2>
+<label for="state">Animacao</label><select id="state"></select>
+<div><button id="pause">Pausar</button><button id="step">Proximo quadro</button><button id="restart">Reiniciar</button></div>
+<label><input id="repeat" type="checkbox" checked> Repetir para inspecao</label>
+<p id="info"></p><p id="frame"></p>
+<p><a href="pet.json">Manifesto para importar no Negotchi</a><br><a href="animations/dancing.gif">GIF da dancinha</a><br><a href="contact-sheet.png">Todos os quadros</a></p>
+<small>Fundo cinza apenas na previa. O atlas PNG preserva transparencia.</small>
+</div></section>
+<h2>Previa de cada estado</h2><div class="grid" id="gallery"></div>
+</main>
+<script>
+const names=['idle','running-right','running-left','waving','jumping','failed','waiting','running','review','thinking','responding','dancing'];
+const labels=['Repouso','Corrida para direita','Corrida para esquerda','Aceno','Salto','Falha e recuperacao','Espera','Trabalhando','Revisando','Pensando','Respondendo','Dancando'];
+const fps=[6,8,8,6,8,6,6,8,6,6,8,6];
+const once=new Set(['waving','jumping','failed']);
+const select=document.querySelector('#state'),ctx=document.querySelector('#pet').getContext('2d'),sprite=new Image();
+let row=11,index=0,playing=true,loaded=false,last=0,elapsed=0;
+names.forEach((name,i)=>{const option=document.createElement('option');option.value=i;option.textContent=labels[i];select.append(option);const card=document.createElement('figure');card.className='card';const image=document.createElement('img');image.src='animations/'+name+'.gif';image.alt=labels[i];const title=document.createElement('figcaption');title.textContent=labels[i]+' ('+name+')';card.append(image,title);document.querySelector('#gallery').append(card)});
+select.value='11';
+function draw(){if(!loaded)return;ctx.clearRect(0,0,192,208);ctx.drawImage(sprite,index*192,row*208,192,208,0,0,192,208);document.querySelector('#info').textContent=names[row]+' | '+fps[row]+' fps | '+(once.has(names[row])?'uma vez no aplicativo':'loop no aplicativo');document.querySelector('#frame').textContent='Quadro '+(index+1)+' de 8';}
+function reset(){index=0;elapsed=0;draw()}
+select.onchange=()=>{row=Number(select.value);reset()};
+document.querySelector('#pause').onclick=()=>{playing=!playing;document.querySelector('#pause').textContent=playing?'Pausar':'Reproduzir'};
+document.querySelector('#step').onclick=()=>{playing=false;document.querySelector('#pause').textContent='Reproduzir';index=(index+1)%8;elapsed=0;draw()};
+document.querySelector('#restart').onclick=reset;
+sprite.onload=()=>{loaded=true;draw()};sprite.src='spritesheet.png';
+function tick(now){if(last&&playing&&loaded){elapsed+=now-last;const duration=1000/fps[row];while(elapsed>=duration){elapsed-=duration;if(index<7)index++;else if(document.querySelector('#repeat').checked||!once.has(names[row]))index=0;draw()}}last=now;requestAnimationFrame(tick)}requestAnimationFrame(tick);
+</script>
+</html>

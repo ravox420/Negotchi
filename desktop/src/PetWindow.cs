@@ -26,7 +26,9 @@ namespace Negotchi
         private double lastDragX;
         internal string CurrentAnimation { get { return animation; } }
         private DateTime nextIdle = DateTime.UtcNow.AddSeconds(20), bubbleUntil = DateTime.UtcNow.AddSeconds(8);
-        private bool busy, pressing, dragged;
+        private bool busy, pressing, dragged, spotifyPlaying;
+        private string AmbientAnimation { get { return spotifyPlaying && assets.Animations.ContainsKey("dancing") ? "dancing" : "idle"; } }
+        private string ContextAnimation { get { return !busy && contextAnimation == "idle" ? AmbientAnimation : contextAnimation; } }
         private Point pressPoint, originalPosition;
         public Action OpenFile, ChooseFolder, ChoosePet, Quit;
 
@@ -47,7 +49,7 @@ namespace Negotchi
             image.MouseLeftButtonDown += OnPress;
             image.MouseMove += OnMove;
             image.MouseLeftButtonUp += OnRelease;
-            image.LostMouseCapture += delegate { if (pressing) { pressing = false; if (dragged) { ClampPosition(); PersistPosition(); } Play(contextAnimation); } };
+            image.LostMouseCapture += delegate { if (pressing) { pressing = false; if (dragged) { ClampPosition(); PersistPosition(); } Play(ContextAnimation); } };
             MouseWheel += delegate(object sender, MouseWheelEventArgs args) { ResizePet(state.Scale + (args.Delta > 0 ? 0.1 : -0.1)); args.Handled = true; };
             ContextMenu = BuildMenu();
             Theme.BindTypography(this);
@@ -65,6 +67,14 @@ namespace Negotchi
         }
 
         public string ActivePetId { get { return assets.Id; } }
+        public void SetSpotifyPlaying(bool playing)
+        {
+            if (spotifyPlaying == playing) return;
+            spotifyPlaying = playing;
+            if (!playing) nextIdle = DateTime.UtcNow.AddSeconds(20);
+            if (!busy && !pressing && (animation == "idle" || animation == "dancing") && animation != ContextAnimation) Play(ContextAnimation);
+        }
+
         public void SetPet(PetAssets replacement)
         {
             assets = replacement; Title = "Negotchi - " + assets.DisplayName; Icon = assets.Frames[0];
@@ -78,7 +88,7 @@ namespace Negotchi
         {
             busy = working; bubbleText.Text = text; bubbleUntil = DateTime.UtcNow.AddSeconds(7); bubble.Visibility = Visibility.Visible;
             contextAnimation = assets.ResolveAnimation(name);
-            if (!pressing && animation != contextAnimation && (!busy || name == "waiting" || name == "failed" || animationClock.ElapsedMilliseconds >= 160)) Play(contextAnimation);
+            if (!pressing && animation != ContextAnimation && (!busy || name == "waiting" || name == "failed" || animationClock.ElapsedMilliseconds >= 160)) Play(ContextAnimation);
         }
 
         private void Tick()
@@ -88,8 +98,9 @@ namespace Negotchi
             int tick = (int)(animationClock.Elapsed.TotalSeconds * track.Fps);
             if (tick >= track.Frames.Length && !track.Loop)
             {
-                Play(pressing && dragged ? animation : busy ? contextAnimation : track.Fallback); track = assets.Animations[animation]; tick = 0;
-                if (!busy && !pressing) contextAnimation = animation;
+                string next = pressing && dragged ? animation : busy ? contextAnimation : track.Fallback;
+                if (!busy && !pressing) contextAnimation = next;
+                Play(!busy && next == "idle" ? AmbientAnimation : next); track = assets.Animations[animation]; tick = 0;
             }
             image.Source = assets.Frames[track.Frames[tick % track.Frames.Length]];
             bubble.Visibility = busy || DateTime.UtcNow < bubbleUntil ? Visibility.Visible : Visibility.Hidden;
@@ -122,8 +133,8 @@ namespace Negotchi
         {
             if (!pressing) return;
             pressing = false; image.ReleaseMouseCapture();
-            if (dragged) { ClampPosition(); PersistPosition(); Play(contextAnimation); }
-            else talk();
+            if (dragged) { ClampPosition(); PersistPosition(); Play(ContextAnimation); }
+            else { if (!busy && (animation == "idle" || animation == "dancing") && animation != ContextAnimation) Play(ContextAnimation); talk(); }
             args.Handled = true;
         }
 
