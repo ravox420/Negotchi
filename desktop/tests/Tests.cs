@@ -35,7 +35,7 @@ namespace Negotchi
             Directory.CreateDirectory(output);
             try
             {
-                TestAssets(); TestCatalog(); TestFiles(); TestState(); TestPosition(); TestSlashCommands(); TestNormalization(); TestGitGraph(); TestPetCreation(); TestSpotifyPlayback().GetAwaiter().GetResult(); TestWorkspace().GetAwaiter().GetResult(); TestProtocol().GetAwaiter().GetResult(); TestCommandProtocol().GetAwaiter().GetResult(); TestNativeProtocol().GetAwaiter().GetResult(); TestViews();
+                TestAssets(); TestCatalog(); TestFiles(); TestState(); TestPosition(); TestSlashCommands(); TestNormalization(); TestGitGraph(); TestPetCreation(); TestSpotifyPlayback().GetAwaiter().GetResult(); TestWorkspace().GetAwaiter().GetResult(); TestProtocol().GetAwaiter().GetResult(); TestCommandProtocol().GetAwaiter().GetResult(); TestNativeProtocol().GetAwaiter().GetResult(); TestViews(); TestAccountCharts();
                 File.WriteAllText(Path.Combine(output, "test-results.json"), Json.Encode(Json.Map("passed", assertions, "failed", 0, "nativeProtocol", true, "liveModelTested", false)), Encoding.UTF8);
                 Console.WriteLine("PASS: " + assertions + " verificacoes. Previews: .build/chat-preview.png e .build/pet-preview.png");
                 return 0;
@@ -46,6 +46,25 @@ namespace Negotchi
         {
             if (!value) throw new Exception("FAIL: " + description);
             assertions++; Console.WriteLine("PASS: " + description);
+        }
+        private static void TestAccountCharts()
+        {
+            var window = new AccountWindow(null, null, null);
+            var account = new RpcRead { Data = Json.Map("account", Json.Map("email", "teste@example.com", "planType", "plus")) };
+            var limits = new RpcRead { Data = Json.Map("rateLimits", Json.Map("primary", Json.Map("usedPercent", 25.5, "windowDurationMins", 300), "secondary", Json.Map("usedPercent", 60, "windowDurationMins", 10080))) };
+            var usage = new RpcRead { Data = Json.Map("summary", Json.Map("lifetimeTokens", 12345), "dailyUsageBuckets", new object[] { Json.Map("startDate", "2026-10-27", "tokens", 100), Json.Map("startDate", "2026-10-26", "tokens", 0) }) };
+            var tokens = Json.Map("total", Json.Map("totalTokens", 300, "inputTokens", 200, "outputTokens", 100));
+            window.ShowData(account, limits, usage, tokens);
+            Render((FrameworkElement)window.Content, 620, 600, Path.Combine(output, "account-charts-preview.png"));
+            var bars = Descendants<ProgressBar>((FrameworkElement)window.Content).ToArray();
+            Check(bars.Length == 6 && bars[0].Value == 25.5 && bars[2].Value == 0 && bars[3].Value == 100 && bars[4].Maximum == 300, "graficos preservam percentuais, datas, zero e divisao dos tokens da conversa");
+            var labels = Descendants<TextBlock>((FrameworkElement)window.Content).Select(label => label.Text).ToArray();
+            Check(labels.Any(label => label.Contains("26/10/2026")) && labels.Any(label => label.Contains("12.345")), "atividade apresenta datas e totais da conta");
+            window.ShowData(account, new RpcRead { Error = "limites indisponíveis" }, new RpcRead { Error = "atividade indisponível" }, null);
+            Render((FrameworkElement)window.Content, 620, 600, Path.Combine(output, "account-unavailable-preview.png"));
+            labels = Descendants<TextBlock>((FrameworkElement)window.Content).Select(label => label.Text).ToArray();
+            Check(!Descendants<ProgressBar>((FrameworkElement)window.Content).Any() && labels.Any(label => label.Contains("limites indisponíveis")) && labels.Any(label => label.Contains("atividade indisponível")) && labels.Any(label => label.Contains("não informado")), "graficos distinguem falhas e ausencia de dados de consumo zero");
+            window.Close();
         }
         private static async Task<int> HistoryAudit()
         {

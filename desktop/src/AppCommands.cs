@@ -102,7 +102,7 @@ namespace Negotchi
                 }
                 else if (name == "/account")
                 {
-                    new AccountWindow(chat, agent).ShowDialog(); feedback = "Perfil consultado.";
+                    new AccountWindow(chat, agent, () => state.TokenUsage).ShowDialog(); feedback = "Perfil consultado.";
                 }
                 else if (name == "/usage")
                 {

@@ -150,7 +150,7 @@ Ao escolher uma skill, a interface mostra uma identificação acima da mensagem 
 
 As opções globais de `/memories` são salvas pelo Codex em sua própria configuração e também afetam outros clientes que usam essa configuração. A permissão de contribuição é aplicada à conversa atual. A marcação intermediária mantém a opção atual; memórias já incluídas no histórico continuam nesse histórico.
 
-Uso e limites dependem da autenticação e dos dados retornados pelo serviço. A interface identifica métricas ausentes e falhas de consulta; tokens da conversa aparecem quando o Codex emite a atualização correspondente.
+No perfil, gráficos mostram os percentuais usados em cada janela de limite, os tokens por dia quando informados e a composição dos tokens da conversa ativa. Os totais da conversa e da conta são apresentados separadamente. Uso e limites dependem da autenticação e dos dados retornados pelo serviço. A interface identifica métricas ausentes e falhas de consulta; tokens da conversa aparecem quando o Codex emite a atualização correspondente.
 
 Com a conta conectada, o botão **Conectar conta** fica oculto e o cabeçalho mostra o e-mail e o percentual disponível de cada janela de uso informada pelo Codex. Os limites são atualizados na abertura, após o login, ao concluir ou interromper um pedido e quando o serviço notifica uma mudança. Esse percentual representa o saldo do limite de uso da conta; o total de tokens consumidos na conversa continua disponível em `/usage`. Quando o serviço não informa o e-mail ou os limites, a interface identifica essa ausência.
 

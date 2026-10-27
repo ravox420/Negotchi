@@ -30,5 +30,6 @@ Cada item só passa a concluído depois de implementação e validação do seu 
 | 22 | Ditado por voz | Pendente |
 | 23 | Predições no compositor | Pendente |
 | 24 | Atalhos, múltiplas janelas e navegação | Pendente |
+| 25 | [Orquestrador de modelos por complexidade do prompt](funcionalidades-pendentes/Orquestrador_de_Modelos_por_Complexidade.md) | Pendente |
 
 Validação das etapas 1–11: `.build-incomplete-validation/test-results.json` (205 verificações) e `ui-smoke-report.json` (87 verificações). Escritas de configuração dos testes ficam em CODEX_HOME isolado; push somente em remoto temporário local. Nenhum servidor MCP foi adicionado à configuração real pelo agente.

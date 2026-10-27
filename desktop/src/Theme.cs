@@ -44,24 +44,24 @@ namespace Negotchi
 
     internal static partial class Theme
     {
-        public const string DefaultFontFamily = "Segoe UI, Segoe UI Emoji, Segoe UI Symbol";
+        public const string DefaultFontFamily = "Cascadia Mono";
         public static readonly ThemeColor[] Colors = {
-            new ThemeColor("Background", "Fundo da janela", "#17131C", "#F6F3F8"),
+            new ThemeColor("Background", "Fundo da janela", "#000000", "#F6F3F8"),
             new ThemeColor("Surface", "Paineis e campos", "#241D2B", "#FFFFFF"),
-            new ThemeColor("Text", "Texto principal", "#F8F1FA", "#241D2B"),
+            new ThemeColor("Text", "Texto principal", "#FFFFFF", "#241D2B"),
             new ThemeColor("MutedText", "Texto secundario", "#B4A4BC", "#6C6172"),
-            new ThemeColor("Border", "Bordas", "#3A2E43", "#D7CEDD"),
+            new ThemeColor("Border", "Bordas", "#000000", "#D7CEDD"),
             new ThemeColor("Accent", "Destaques", "#F0A5C9", "#9A3D70"),
             new ThemeColor("Button", "Botao nao selecionado", "#241D2B", "#E9E2ED"),
             new ThemeColor("ButtonText", "Texto do botao nao selecionado", "#F8F1FA", "#241D2B"),
-            new ThemeColor("SelectedButton", "Botao selecionado", "#F0A5C9", "#B44E82"),
+            new ThemeColor("SelectedButton", "Botao selecionado", "#F039AA", "#B44E82"),
             new ThemeColor("SelectedButtonText", "Texto do botao selecionado", "#17131C", "#FFFFFF"),
             new ThemeColor("AssistantBubble", "Balao de resposta", "#241D2B", "#FFFFFF"),
             new ThemeColor("AssistantBubbleText", "Texto da resposta", "#F8F1FA", "#241D2B"),
-            new ThemeColor("UserBubble", "Balao da sua mensagem", "#F0A5C9", "#EDD8E6"),
-            new ThemeColor("UserBubbleText", "Texto da sua mensagem", "#17131C", "#3C2033"),
-            new ThemeColor("SpeechBubble", "Balao sobre o pet", "#F0A5C9", "#B44E82"),
-            new ThemeColor("SpeechBubbleText", "Texto do balao sobre o pet", "#17131C", "#FFFFFF")
+            new ThemeColor("UserBubble", "Balao da sua mensagem", "#151515", "#EDD8E6"),
+            new ThemeColor("UserBubbleText", "Texto da sua mensagem", "#FFFFFF", "#3C2033"),
+            new ThemeColor("SpeechBubble", "Balao sobre o pet", "#000000", "#B44E82"),
+            new ThemeColor("SpeechBubbleText", "Texto do balao sobre o pet", "#FFFFFF", "#FFFFFF")
         };
         private static readonly Dictionary<string, ThemeColor> palette = Colors.ToDictionary(color => color.Key);
         private static readonly Dictionary<double, string> fontKeys = new Dictionary<double, string>();
