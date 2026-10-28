@@ -23,6 +23,14 @@ namespace Negotchi
             Check(!SpotifyPlaybackMonitor.IsSpotifyPlaying(null, playing), "sessao sem origem nao aciona danca");
             Check(new[] { "chrome.exe", "Spotify.exe" }.Any(id => SpotifyPlaybackMonitor.IsSpotifyPlaying(id, playing)), "considera Spotify mesmo quando outra sessao e a primeira");
 
+            var dancingIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "bsod", "codex", "dewey", "fireball", "Guts", "null-signal", "rocky", "seedy", "stacky" };
+            foreach (var definition in new PetCatalog().Pets.Where(p => dancingIds.Contains(p.Id)))
+            {
+                var builtIn = definition.Load();
+                AnimationTrack dance;
+                Check(builtIn.Animations.TryGetValue("dancing", out dance) && dance.Frames.Length == 8 && dance.Frames.Distinct().Count() == 8 && dance.Loop && dance.Fallback == "idle", "faixa de danca incorporada valida: " + definition.DisplayName);
+            }
+
             bool sourcePlaying = false, fail = false;
             var changes = new List<bool>();
             using (var monitor = new SpotifyPlaybackMonitor(changes.Add, delegate
@@ -80,7 +88,8 @@ namespace Negotchi
                 SetPetField(pet, "pressing", true); SetPetField(pet, "dragged", true); pet.Play("running-left"); pet.SetSpotifyPlaying(false);
                 PetCall(pet, "OnRelease", PetField(pet, "image"), new MouseButtonEventArgs(Mouse.PrimaryDevice, 0, MouseButton.Left) { RoutedEvent = UIElement.MouseLeftButtonUpEvent });
                 Check(pet.CurrentAnimation == "idle", "pausa durante arraste impede retomar danca ao soltar");
-                pet.SetSpotifyPlaying(true); pet.SetPet(new PetAssets()); pet.Mood("Pronto", "idle", false);
+                var withoutDance = new PetAssets(); withoutDance.Animations.Remove("dancing");
+                pet.SetSpotifyPlaying(true); pet.SetPet(withoutDance); pet.Mood("Pronto", "idle", false);
                 Check(pet.CurrentAnimation == "idle", "trocar para pet sem dancing preserva comportamento anterior");
                 pet.SetPet(assets); Thread.Sleep(30); PetCall(pet, "Tick");
                 Check(pet.CurrentAnimation == "dancing", "trocar para pet com dancing considera play ja ativo apos saudacao");

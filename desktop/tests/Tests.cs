@@ -163,7 +163,7 @@ namespace Negotchi
                     new FormatConvertedBitmap(assets.Frames[index], PixelFormats.Bgra32, null, 0).CopyPixels(pixels, 192 * 4, 0);
                     if (!Enumerable.Range(0, 192 * 208).Any(i => pixels[i * 4 + 3] > 12)) visible = false;
                 }
-                Check(visible && used.Length == (assets.Id == "Guts" ? 72 : 57), "animacoes nao incluem celulas vazias: " + definition.DisplayName);
+                Check(visible && used.Length == (assets.Id == "Guts" ? 72 : 57) + (assets.Animations.ContainsKey("dancing") ? 8 : 0), "animacoes nao incluem celulas vazias: " + definition.DisplayName);
                 if (assets.Id != "PimpDogg") Check(assets.Animations["running-right"].Frames[0] == 8 && assets.Animations["review"].Frames[0] == 64, "respeita o padding entre estados: " + definition.DisplayName);
             }
             string instructions = Json.Text(NegotchiApp.ThreadOptions(output, "Dewey"), "developerInstructions");

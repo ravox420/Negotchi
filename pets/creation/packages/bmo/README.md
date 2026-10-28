@@ -18,10 +18,10 @@ o aplicativo para carregar a implementacao desse monitor.
 
 Geracao feita com a ferramenta integrada `image_gen`. O conjunto final de
 prompts esta em `generation.json`; as faixas originais e normalizadas, parametros
-da grade e script de montagem ficam em `../../pet-work/bmo/`.
+da grade e script de montagem ficam em `../../work/bmo/`.
 O script usa o helper original da skill sem alterar seus arquivos e acrescenta
 `dancing` a lista de faixas durante a montagem. Para reconstruir, use Python com
-Pillow e `python pet-work/bmo/build.py --output NOVA_PASTA` a partir do projeto.
+Pillow e `python pets/creation/work/bmo/build.py --output NOVA_PASTA` a partir do projeto.
 
 `validation.json` registra a verificacao tecnica. `visual-review.json` registra
 a inspecao visual separadamente, incluindo os limites da avaliacao.

@@ -1,4 +1,4 @@
-param([string]$Package = 'pets-criados\bmo')
+param([string]$Package = 'pets\creation\packages\bmo')
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName PresentationCore
 Add-Type -AssemblyName PresentationFramework

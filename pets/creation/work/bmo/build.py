@@ -16,7 +16,7 @@ from statistics import median
 from PIL import Image, ImageChops, ImageDraw
 
 BASE = Path(__file__).resolve().parent
-ROOT = BASE.parents[1]
+ROOT = BASE.parents[3]
 FRAME = (192, 208)
 
 

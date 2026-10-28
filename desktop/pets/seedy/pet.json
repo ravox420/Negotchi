@@ -7,7 +7,7 @@
     "width": 192,
     "height": 208,
     "columns": 8,
-    "rows": 9
+    "rows": 10
   },
   "animations": {
     "idle": {
@@ -196,6 +196,21 @@
       ],
       "fps": 8,
       "loop": false,
+      "fallback": "idle"
+    },
+    "dancing": {
+      "frames": [
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79
+      ],
+      "fps": 6,
+      "loop": true,
       "fallback": "idle"
     }
   }

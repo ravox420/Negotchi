@@ -4,7 +4,7 @@ from PIL import Image
 
 base = Path(__file__).resolve().parent
 for record in json.loads((base / 'generation.json').read_text(encoding='utf-8'))['states']:
-    im = Image.open(record['source']).convert('RGBA').resize((2048, 688))
+    im = Image.open(base / 'raw' / (record['state'] + '.png')).convert('RGBA').resize((2048, 688))
     alpha = im.getchannel('A')
     occupied = [sum(v > 16 for v in alpha.crop((x, 0, x + 1, 688)).getdata()) > 3 for x in range(2048)]
     ranges = []

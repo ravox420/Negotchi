@@ -75,6 +75,8 @@ Arrastar assume a corrida na direção do movimento e, ao soltar, restaura o est
 
 Pets com a animação **dancing**, como o BMO, dançam automaticamente enquanto o aplicativo Spotify está reproduzindo. O Negotchi consulta as sessões de mídia do Windows aproximadamente a cada segundo, sem login adicional nem acesso à conta do Spotify. Pausar, parar ou fechar a sessão de reprodução restaura o repouso.
 
+Os pets incorporados BSOD, Codex, Dewey, Fireball, Guts, Null Signal, Rocky, Seedy e Stacky incluem essa animação. A dança do PimpDogg ainda não está disponível.
+
 As animações da conversa, o arraste e as reações pontuais têm prioridade. Ao terminarem, a dança retorna se o Spotify continuar tocando. Pets sem `dancing` mantêm o comportamento anterior. A detecção usa o Spotify para desktop, incluindo a versão da Microsoft Store; abas de navegador e outros players não acionam a dança. Esse recurso requer Windows 10 versão 1809 ou mais recente e o serviço de sessões de mídia disponível; uma falha na consulta mantém o restante do aplicativo funcionando.
 
 ## Aparência
@@ -222,6 +224,8 @@ A integração segue o [Codex App Server oficial](https://learn.chatgpt.com/docs
 ## Recursos originais
 
 `desktop/pets` é a única origem dos pets incorporados no aplicativo. A compilação inclui cada subpasta uma vez, com `pet.json`, `spritesheet.png` e `preview.png`, incluindo PimpDogg e Guts. Após alterar os arquivos dessa pasta, recompile o aplicativo.
+
+Os materiais de criação ficam em `pets/creation`: `references-bmo` reúne as referências, `work` contém as faixas e scripts de trabalho, e `packages` guarda os pacotes prontos para importação. Esses pacotes são separados dos pets incorporados em `desktop/pets`.
 
 A pasta também contém os oito pets padrão importados do cache local do Codex: PNGs com transparência, miniaturas e manifestos. As células de cada estado preservam o espaçamento original da grade de 8 × 9; o PimpDogg mantém seu próprio manifesto. A cadência usada pelo Negotchi está definida nos manifestos importados.
 
