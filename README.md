@@ -1,5 +1,7 @@
 # Negotchi
 
+## 100% vibecodado não enche o saco, forka o projeto e faz melhor
+
 Companheiro de desktop para Windows, com PimpDogg, Guts e oito pets importados do Codex. O personagem fica sobre a área de trabalho, pode ser arrastado e abre uma conversa ao clicar nele.
 
 A interface é nativa, em C# e WPF. O Codex App Server roda em segundo plano para responder perguntas e trabalhar com arquivos. O aplicativo reutiliza o login e o modelo configurado no Codex instalado, sem armazenar senhas ou chaves no projeto.
