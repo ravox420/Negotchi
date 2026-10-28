@@ -29,6 +29,13 @@ namespace Negotchi
                 try { TestSpotifyPlayback().GetAwaiter().GetResult(); Console.WriteLine("PASS: " + assertions + " verificacoes de Spotify e animacoes."); return 0; }
                 catch (Exception error) { Console.Error.WriteLine(error); return 1; }
             }
+            if (args.Length > 0 && args[0] == "--reset-test")
+            {
+                RenderOptions.ProcessRenderMode = System.Windows.Interop.RenderMode.SoftwareOnly;
+                output = Path.GetFullPath(args.Length > 1 ? args[1] : @".artifacts\tests\reset-credit"); Directory.CreateDirectory(output);
+                try { TestResetCredits(); TestResetProtocol().GetAwaiter().GetResult(); Console.WriteLine("PASS: " + assertions + " verificacoes de reset."); return 0; }
+                catch (Exception error) { Console.Error.WriteLine(error); return 1; }
+            }
             if (args.Length > 0 && args[0] == "--ui-smoke") return UiSmoke(Path.GetFullPath(args[1]));
             if (args.Length > 0 && args[0] == "--pet-ui-smoke") return PetCreationUiSmoke(Path.GetFullPath(args[1]));
             output = Path.GetFullPath(args.Length > 0 ? args[0] : ".build");
@@ -37,7 +44,7 @@ namespace Negotchi
             {
                 TestAssets(); TestCatalog(); TestFiles(); TestState(); TestPosition(); TestSlashCommands(); TestNormalization(); TestGitGraph(); TestPetCreation(); TestSpotifyPlayback().GetAwaiter().GetResult(); TestWorkspace().GetAwaiter().GetResult(); TestProtocol().GetAwaiter().GetResult(); TestCommandProtocol().GetAwaiter().GetResult(); TestNativeProtocol().GetAwaiter().GetResult(); TestViews(); TestAccountCharts();
                 File.WriteAllText(Path.Combine(output, "test-results.json"), Json.Encode(Json.Map("passed", assertions, "failed", 0, "nativeProtocol", true, "liveModelTested", false)), Encoding.UTF8);
-                Console.WriteLine("PASS: " + assertions + " verificacoes. Previews: .build/chat-preview.png e .build/pet-preview.png");
+                Console.WriteLine("PASS: " + assertions + " verificacoes. Artefatos: " + output);
                 return 0;
             }
             catch (Exception error) { Console.Error.WriteLine(error); return 1; }
@@ -192,7 +199,7 @@ namespace Negotchi
             Check(store.Load().Appearance.Mode == "dark" && store.Load().Appearance.Colors.Count == Theme.Colors.Length, "usa a paleta padrao em preferencias antigas sem aparencia");
             File.WriteAllText(Path.Combine(directory, "state.json"), "{\"Appearance\":{\"FontSize\":999,\"Colors\":{\"Background\":\"invalida\"}}}");
             restored = store.Load();
-            Check(restored.Appearance.FontSize == 22 && restored.Appearance.Colors["Background"] == "#17131C", "recupera cores invalidas e limita tamanho da fonte ao carregar");
+            Check(restored.Appearance.FontSize == 22 && restored.Appearance.Colors["Background"] == Theme.Preset("dark").Colors["Background"], "recupera cores invalidas e limita tamanho da fonte ao carregar");
             var history = new AppState { Folder = directory, Messages = new List<ChatMessage> { new ChatMessage { Role = "user", Text = "primeira" } } };
             history.EnsureConversations(); string first = history.ActiveConversationId;
             history.Conversations.Add(new ConversationState { Id = "segunda", Title = "Segunda conversa", Folder = directory, Messages = new List<ChatMessage> { new ChatMessage { Role = "user", Text = "segunda" } } });
@@ -474,7 +481,7 @@ namespace Negotchi
             Render((FrameworkElement)chat.Content, 414, (int)chat.MinHeight - 79, Path.Combine(output, "chat-large-font-preview.png"));
             Check(ButtonFits((FrameworkElement)chat.Content, "Enviar"), "preserva acesso ao envio com o maior tamanho de fonte");
             Theme.Apply(Theme.Preset("dark"));
-            Check(Math.Abs(body.FontSize - 13) < 0.01 && body.FontFamily.Source == Theme.FontWithFallback("Segoe UI").Source, "restaura a tipografia sem acumular escala");
+            Check(Math.Abs(body.FontSize - 13) < 0.01 && body.FontFamily.Source == Theme.FontWithFallback(Theme.DefaultFontFamily).Source, "restaura a tipografia sem acumular escala");
         }
         private static bool ButtonFits(FrameworkElement root, string content)
         {
@@ -513,7 +520,7 @@ namespace Negotchi
             Console.InputEncoding = Encoding.UTF8; Console.OutputEncoding = new UTF8Encoding(false);
             bool initialized = false; string toolCall = null;
             var config = Json.Map("model", "model-a", "model_reasoning_effort", "low", "features", Json.Map("memories", false), "memories", Json.Map("use_memories", true, "generate_memories", false));
-            var modelSettings = Json.Map(); var calls = new List<string>();
+            var modelSettings = Json.Map(); var calls = new List<string>(); var lastReset = Json.Map();
             bool accountLoggedIn = true, limitsUnavailable = false;
             bool repeatHistory = false, failHistoryRead = false;
             Dictionary<string, object> renamed = Json.Map();
@@ -597,9 +604,10 @@ namespace Negotchi
                     Write(Json.Map("id", id, "result", Json.Map()));
                     Write(Json.Map("method", "turn/completed", "params", Json.Map("turn", Json.Map("status", "completed"))));
                 }
+                else if (method == "account/rateLimitResetCredit/consume") { lastReset = parameters; Write(Json.Map("id", id, "result", Json.Map("outcome", "noCredit"))); }
                 else if (method == "account/usage/read") Write(Json.Map("id", id, "result", Json.Map("summary", Json.Map("lifetimeTokens", 12345, "peakDailyTokens", 5000))));
                 else if (method == "mcpServerStatus/list") Write(Json.Map("id", id, "result", Json.Map("data", new[] { Json.Map("name", "arquivos", "authStatus", "notLoggedIn", "tools", Json.Map("read_file", Json.Map())) })));
-                else if (method == "test/state") Write(Json.Map("id", id, "result", Json.Map("modelSettings", modelSettings, "calls", calls.ToArray(), "renamed", renamed)));
+                else if (method == "test/state") Write(Json.Map("id", id, "result", Json.Map("modelSettings", modelSettings, "calls", calls.ToArray(), "renamed", renamed, "lastReset", lastReset)));
                 else if (method == "thread/name/set") { renamed = parameters; Write(Json.Map("id", id, "result", Json.Map())); }
                 else if (method == "thread/archive") Write(Json.Map("id", id, "result", Json.Map()));
                 else if (method == "thread/start")

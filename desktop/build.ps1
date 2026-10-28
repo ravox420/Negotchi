@@ -26,7 +26,9 @@ foreach ($petDirectory in @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 
         $arguments += '/resource:' + (Join-Path $petDirectory.FullName $petFile) + ',Negotchi.pets.' + $petDirectory.Name + '.' + $petFile
     }
 }
-$arguments += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src') -Filter '*.cs' | ForEach-Object { $_.FullName })
+$sourceFiles = @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src') -Filter '*.cs' -Recurse -File | Sort-Object FullName | ForEach-Object { $_.FullName })
+if ($sourceFiles.Count -eq 0) { throw 'Nenhum arquivo C# encontrado em desktop/src.' }
+$arguments += $sourceFiles
 & $compiler @arguments
 if ($LASTEXITCODE -ne 0) { throw 'A compilacao do Negotchi falhou.' }
 Write-Output ('Aplicativo: ' + (Join-Path $outputDirectory 'Negotchi.exe'))
@@ -37,12 +39,16 @@ Copy-Item -LiteralPath $skillSource -Destination $skillDestination -Recurse -For
 if ($Test) {
     $testArguments = @('/nologo', '/target:exe', '/platform:anycpu', '/codepage:65001', '/utf8output', ('/out:' + (Join-Path $outputDirectory 'Negotchi.Tests.exe')), '/main:Negotchi.Tests')
     $testArguments += @($arguments | Where-Object { $_ -like '/reference:*' -or $_ -like '/resource:*' })
-    $testArguments += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'src') -Filter '*.cs' | ForEach-Object { $_.FullName })
-    $testArguments += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tests') -Filter '*.cs' | ForEach-Object { $_.FullName })
+    $testArguments += $sourceFiles
+    $testArguments += @(Get-ChildItem -LiteralPath (Join-Path $PSScriptRoot 'tests') -Filter '*.cs' -Recurse -File | Sort-Object FullName | ForEach-Object { $_.FullName })
     & $compiler @testArguments
     if ($LASTEXITCODE -ne 0) { throw 'A compilacao dos testes falhou.' }
     if ($TestRunArguments) { & (Join-Path $outputDirectory 'Negotchi.Tests.exe') @TestRunArguments }
-    else { & (Join-Path $outputDirectory 'Negotchi.Tests.exe') $outputDirectory }
+    else {
+        $testOutputDirectory = Join-Path (Join-Path $projectRoot '.artifacts\tests') ([DateTime]::UtcNow.ToString('yyyyMMdd-HHmmss-fff') + '-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
+        New-Item -ItemType Directory -Force -Path $testOutputDirectory | Out-Null
+        & (Join-Path $outputDirectory 'Negotchi.Tests.exe') $testOutputDirectory
+    }
     if ($LASTEXITCODE -ne 0) { throw 'Os testes do Negotchi falharam.' }
 }
 if ($Run) { Start-Process -FilePath (Join-Path $outputDirectory 'Negotchi.exe') -WindowStyle Normal }

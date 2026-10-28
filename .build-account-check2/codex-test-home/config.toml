@@ -1,8 +1,0 @@
-[features]
-memories = true
-
-[memories]
-use_memories = false
-generate_memories = false
-
-[mcp_servers]

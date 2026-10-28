@@ -1,4 +1,6 @@
 .build/
+.build-*/
+.artifacts/
 .build-error.txt
 *.user
 *.suo

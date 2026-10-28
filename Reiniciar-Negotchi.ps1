@@ -7,7 +7,7 @@ $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $executable = Join-Path $projectRoot '.build\Negotchi.exe'
 $buildScript = Join-Path $projectRoot 'desktop\build.ps1'
-$stagingDirectory = Join-Path $projectRoot '.build-restart'
+$stagingDirectory = Join-Path $projectRoot '.artifacts\restart'
 
 # Compile before closing the current instance so a build failure keeps it available.
 & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $buildScript -Destination $stagingDirectory

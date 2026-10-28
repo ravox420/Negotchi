@@ -1,4 +1,0 @@
-interface:
-  display_name: "Create Pet - Negotchi"
-  short_description: "Crie pets para o Negotchi com onze animacoes"
-  default_prompt: "Use $create-pet para criar um personagem animado para o Negotchi a partir da minha descricao."

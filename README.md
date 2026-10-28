@@ -154,6 +154,8 @@ As opções globais de `/memories` são salvas pelo Codex em sua própria config
 
 No perfil, gráficos mostram os percentuais usados em cada janela de limite, os tokens por dia quando informados e a composição dos tokens da conversa ativa. Os totais da conversa e da conta são apresentados separadamente. Uso e limites dependem da autenticação e dos dados retornados pelo serviço. A interface identifica métricas ausentes e falhas de consulta; tokens da conversa aparecem quando o Codex emite a atualização correspondente.
 
+Ao lado das abas **Conversa** e **Pets**, **Reset** mostra a quantidade de resets bancados informada pelo Codex. Quando o serviço indica disponibilidade, o botão consulta os limites novamente e pede confirmação antes de resgatar um reset. O serviço decide se há janela elegível; o histórico de tokens não é apagado. Se o resultado não for confirmado, **Conferir reset** repete o mesmo pedido na mesma conta e espaço de trabalho, inclusive após reiniciar o Negotchi.
+
 Com a conta conectada, o botão **Conectar conta** fica oculto e o cabeçalho mostra o e-mail e o percentual disponível de cada janela de uso informada pelo Codex. Os limites são atualizados na abertura, após o login, ao concluir ou interromper um pedido e quando o serviço notifica uma mudança. Esse percentual representa o saldo do limite de uso da conta; o total de tokens consumidos na conversa continua disponível em `/usage`. Quando o serviço não informa o e-mail ou os limites, a interface identifica essa ausência.
 
 Exemplos de pedidos:
@@ -189,35 +191,21 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\desktop\build.ps1 -Tes
 
 O build usa o compilador do .NET Framework que acompanha o Windows, sem restaurar pacotes. Após alterar o código, execute o build novamente antes de abrir o aplicativo. A pasta `.build` é gerada e fica fora do Git.
 
-| Arquivo | Responsabilidade |
-| --- | --- |
-| `desktop/src/App.cs` | Conversa, autenticação, ações e ciclo de vida |
-| `desktop/src/AppCommands.cs` | Execução dos comandos e aplicação das escolhas na conversa |
-| `desktop/src/CodexCommands.cs` | Consultas, configurações e dados dos comandos nativos |
-| `desktop/src/CommandMenu.cs` | Seletor de comandos e sugestões no campo de mensagem |
-| `desktop/src/CommandDialogs.cs` | Janelas de modelo, skills, uso e memórias |
-| `desktop/src/ConversationHistory.cs` | Leitura paginada de sessões e mensagens no App Server |
-| `desktop/src/ConversationPicker.cs` | Seletor de conversas inspirado no CLI resume --all |
-| `desktop/src/PetWindow.cs` | Janela transparente, animações, arraste e menu |
-| `desktop/src/PetActivity.cs` | Estados visuais a partir dos eventos públicos do agente |
-| `desktop/src/SpotifyPlaybackMonitor.cs` | Consulta local do play do Spotify para a animação de dança |
-| `desktop/src/PetPackages.cs` | Validação e importação de pacotes locais |
-| `desktop/src/AppPetCreation.cs` | Skill de criação, registro e atualização do catálogo |
-| `desktop/src/ChatWindow.cs` | Interface nativa do chat |
-| `desktop/src/PetPicker.cs` | Aba de seleção, prévias e indicação do pet ativo |
-| `desktop/src/CodexClient.cs` | Processo oculto e protocolo JSON-RPC bidirecional |
-| `desktop/src/DesktopActions.cs` | Resolução de caminhos, abertura e revisão de ações |
-| `desktop/src/Core.cs` | Recursos do pet e persistência |
-| `desktop/src/Theme.cs` | Paleta por função, estilos e tipografia compartilhados |
-| `desktop/src/AppearanceWindow.cs` | Preferências e prévia da aparência |
-| `desktop/src/ColorPickerWindow.cs` | Roda seletora e controle de luminosidade |
-| `desktop/tests/Tests.cs` | Testes de arquivos, estado, protocolo e renderização |
+A estrutura do código e os limites atuais dos módulos estão descritos em
+[`docs/arquitetura.md`](docs/arquitetura.md). O executável continua sendo um
+único processo WPF; o build descobre os arquivos C# nas subpastas de `src` e
+`tests`.
+
+O executável permanece em `.build`. Resultados de testes novos ficam em
+`.artifacts/tests/<execução>`, e os builds históricos foram preservados em
+`.artifacts/legacy`. Essas pastas geradas são ignoradas pelo Git. Os arquivos
+históricos que estavam versionados aparecem como removidos na próxima revisão.
 
 Os testes cobrem o catálogo, a escolha de pet, a ausência de quadros vazios nas animações, o roteamento dos comandos, o protocolo com um servidor simulado e operações reais do `codex.exe` em um `CODEX_HOME` isolado. As alterações de configuração realizadas pelos testes ficam nesse diretório isolado. Também geram `chat-preview.png`, `pet-preview.png` e `pets-preview.png` para inspeção da interface. Isso não substitui um teste de conversa e de limites com uma conta autenticada.
 
-Para verificar o ciclo de vida com janelas reais, execute `.\.build\Negotchi.Tests.exe --ui-smoke .\.build`. Esse teste abre o pet, o chat e as janelas dos comandos, verifica a persistência e o ícone de bandeja e encerra. Usa preferências isoladas em `.build\ui-smoke-home` e um servidor simulado para as ações de conta e configuração das janelas.
+Para verificar o ciclo de vida com janelas reais, execute `.\.build\Negotchi.Tests.exe --ui-smoke .\.artifacts\tests\ui-smoke`. Esse teste abre o pet, o chat e as janelas dos comandos, verifica a persistência e o ícone de bandeja e encerra. Usa preferências isoladas em `.artifacts\tests\ui-smoke\ui-smoke-home` e um servidor simulado para as ações de conta e configuração das janelas.
 
-O fluxo de criação e os estados visuais têm um smoke test separado: `.\.build\Negotchi.Tests.exe --pet-ui-smoke .\.build`. Os testes técnicos do empacotador usam figuras geométricas temporárias, sem gerar arte: `uv run --with pillow python desktop/tests/test_pet_pack.py`. Eles não comprovam a disponibilidade de um gerador de imagens na conta nem a qualidade artística de um pet.
+O fluxo de criação e os estados visuais têm um smoke test separado: `.\.build\Negotchi.Tests.exe --pet-ui-smoke .\.artifacts\tests\pet-ui-smoke`. Os testes técnicos do empacotador usam figuras geométricas temporárias, sem gerar arte: `uv run --with pillow python desktop/tests/pets/test_pet_pack.py`. Eles não comprovam a disponibilidade de um gerador de imagens na conta nem a qualidade artística de um pet.
 
 A integração segue o [Codex App Server oficial](https://learn.chatgpt.com/docs/app-server). As ferramentas dinâmicas são experimentais; mudanças no protocolo podem exigir ajustes no cliente.
 
